@@ -160,53 +160,6 @@ if($nextstep -eq "03-Updates"){
 }
 
 if($nextstep -eq "04-SetupVM-Images"){
-$Products=@()
-$Products+=@{Product="Azure Stack HCI 21H2 and Windows Server 2022" ;SearchString="Cumulative Update for Microsoft server operating system version 21H2 for x64-based Systems" ;SSUSearchString="Servicing Stack Update for Microsoft server operating system version 21H2 for x64-based Systems" ; ID="Microsoft Server operating system-21H2" ; FolderID="WS2022"}
-
-if(Test-path hklm:software\RMLab\Templates\Updates)
-{
-    $folder = (Get-ItemProperty -Path hklm:software\RMLab\Templates\Updates -Name "Path").Path
-}
-else
-{
-    do {
-        $folder="C:\temp"
-        if(Test-Path $folder)
-        {
-            New-Item -Path hklm:software -Name RMLab #-ErrorAction SilentlyContinue
-            New-Item -Path hklm:software\RMLab -Name Templates #-ErrorAction SilentlyContinue
-            New-Item -Path hklm:software\RMLab\Templates -Name Updates #-ErrorAction SilentlyContinue
-            Set-ItemProperty -Path hklm:software\RMLab\Templates\Updates -Name "Path" -Value $folder
-        }
-        else
-        {
-            Write-Host "The Path $folder is not valid"
-        }
-    } until (Test-path hklm:software\RMLab\Templates\Updates)
-    
-}
-if(!$folder){$folder=$PSScriptRoot}
-
-$preview=$false
-
-#let user choose products
-$SelectedProducts= $Products.Product
-
-#region download MSCatalog module
-Write-Output "Checking if MSCatalog PS Module is Installed"
-if (!(Get-InstalledModule -Name MSCatalog -ErrorAction Ignore)){
-    # Verify Running as Admin
-    $isAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")
-    If (!( $isAdmin )) {
-        Write-Host "-- Restarting as Administrator to install Modules" -ForegroundColor Cyan ; Start-Sleep -Seconds 1
-        Start-Process powershell.exe "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs 
-        exit
-    }
-    Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force
-    Install-Module -Name MSCatalog -Force
-}
-
-#endregion
 
 #region download products
 Foreach($SelectedProduct in $SelectedProducts){
