@@ -160,7 +160,7 @@ if($nextstep -eq "03-Updates"){
 }
 
 if($nextstep -eq "04-SetupVM-Images"){
-    ﻿$Products=@()
+$Products=@()
 $Products+=@{Product="Azure Stack HCI 21H2 and Windows Server 2022" ;SearchString="Cumulative Update for Microsoft server operating system version 21H2 for x64-based Systems" ;SSUSearchString="Servicing Stack Update for Microsoft server operating system version 21H2 for x64-based Systems" ; ID="Microsoft Server operating system-21H2" ; FolderID="WS2022"}
 
 if(Test-path hklm:software\RMLab\Templates\Updates)
