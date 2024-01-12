@@ -108,6 +108,9 @@ if($nextstep -eq "02-Networking"){
         $Result
     }
 
+    New-VMSwitch -SwitchName "NATSwitch"-SwitchTyper Internal
+    New-NetIPAddress -IPAddress "172.16.100.1" -PrefixLength 24 -InterfaceAlias "vEthernet (NATSwitch)"
+
     Remove-Item -Path HKLM:\Software\Autoconf -Force -Confirm:$false
     New-Item -Path HKLM:\Software -Name Autoconf -Force
     New-Item -Path HKLM:\Software\Autoconf -Value "03-Updates" -Force
