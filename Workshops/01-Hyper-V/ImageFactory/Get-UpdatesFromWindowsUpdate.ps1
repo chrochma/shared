@@ -9,7 +9,7 @@ if(Test-path hklm:software\RMLab\Templates\Updates)
 else
 {
     do {
-        $folder=C:\temp
+        $folder="C:\temp"
         if(Test-Path $folder)
         {
             New-Item -Path hklm:software -Name RMLab #-ErrorAction SilentlyContinue
@@ -51,7 +51,7 @@ if (!(Get-InstalledModule -Name MSCatalog -ErrorAction Ignore)){
 Foreach($SelectedProduct in $SelectedProducts){
     $item=$Products | Where-Object product -eq $SelectedProduct
     #Download SSU
-    $update=Get-MSCatalogUpdate -Search $item.searchstring | Where-Object Products -eq $item.ID | Where-Object Title -like "*$($item.SearchString)*" | Select-Object -First 1
+    $update=Get-MSCatalogUpdate -Search "Cumulative Update for Microsoft server operating system version 21H2 for x64-based Systems" | Select-Object -First 1
     $FolderItem = $item.FolderID
     $DestinationFolder="$folder\$FolderItem\$($update.title.Substring(0,7))"
     $UpdatePattern = $DestinationFolder -replace '^.*(?=.{7}$)'
