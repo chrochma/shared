@@ -74,6 +74,13 @@ if($nextstep -eq "01-InitialSetup")
 
     "Restarting Computer" | Out-File -FilePath $Loglocation\InitialConfiguration.log -Append
 
+    get-disk | Where-Object PartitionStyle -like RAW | Initialize-Disk -PartitionStyle GPT | New-Partition -UseMaximumSize -AssignDriveLetter
+
+    $disks = get-disk | Where-Object Size -gt 1000000000000 
+    foreach($Disk in $Disks){
+        $Disk | New-Partition -UseMaximumSize -AssignDriveLetter | Format-Volume -FileSystem NTFS -AllocationUnitSize 65536 -NewFileSystemLabel "DATA" -Confirm:$false 
+    }
+
 
     Remove-Item -Path HKLM:\Software\Autoconf -Force -Confirm:$false
     New-Item -Path HKLM:\Software -Name Autoconf -Force
@@ -146,14 +153,331 @@ if($nextstep -eq "03-Updates"){
         Remove-Item -Path HKLM:\Software\Autoconf\RestartCount -Force -Confirm:$false
         Remove-Item -Path HKLM:\Software\Autoconf -Force -Confirm:$false
         New-Item -Path HKLM:\Software -Name Autoconf -Force
-        New-Item -Path HKLM:\Software\Autoconf -Value "04-SetupVMs" -Force
+        New-Item -Path HKLM:\Software\Autoconf -Value "04-SetupVM-Images" -Force
         Restart-Computer -Confirm:$false -Force
     }
     Restart-Computer -Confirm:$false -Force
 }
 
-if($nextstep -eq "04-SetupVMs"){
-##### DO STH
+if($nextstep -eq "04-SetupVM-Images"){
+    ﻿$Products=@()
+$Products+=@{Product="Azure Stack HCI 21H2 and Windows Server 2022" ;SearchString="Cumulative Update for Microsoft server operating system version 21H2 for x64-based Systems" ;SSUSearchString="Servicing Stack Update for Microsoft server operating system version 21H2 for x64-based Systems" ; ID="Microsoft Server operating system-21H2" ; FolderID="WS2022"}
+
+if(Test-path hklm:software\RMLab\Templates\Updates)
+{
+    $folder = (Get-ItemProperty -Path hklm:software\RMLab\Templates\Updates -Name "Path").Path
+}
+else
+{
+    do {
+        $folder="C:\temp"
+        if(Test-Path $folder)
+        {
+            New-Item -Path hklm:software -Name RMLab #-ErrorAction SilentlyContinue
+            New-Item -Path hklm:software\RMLab -Name Templates #-ErrorAction SilentlyContinue
+            New-Item -Path hklm:software\RMLab\Templates -Name Updates #-ErrorAction SilentlyContinue
+            Set-ItemProperty -Path hklm:software\RMLab\Templates\Updates -Name "Path" -Value $folder
+        }
+        else
+        {
+            Write-Host "The Path $folder is not valid"
+        }
+    } until (Test-path hklm:software\RMLab\Templates\Updates)
+    
+}
+if(!$folder){$folder=$PSScriptRoot}
+
+$preview=$false
+
+#let user choose products
+$SelectedProducts= $Products.Product
+
+#region download MSCatalog module
+Write-Output "Checking if MSCatalog PS Module is Installed"
+if (!(Get-InstalledModule -Name MSCatalog -ErrorAction Ignore)){
+    # Verify Running as Admin
+    $isAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")
+    If (!( $isAdmin )) {
+        Write-Host "-- Restarting as Administrator to install Modules" -ForegroundColor Cyan ; Start-Sleep -Seconds 1
+        Start-Process powershell.exe "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs 
+        exit
+    }
+    Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force
+    Install-Module -Name MSCatalog -Force
+}
+
+#endregion
+
+#region download products
+Foreach($SelectedProduct in $SelectedProducts){
+    $item=$Products | Where-Object product -eq $SelectedProduct
+    #Download SSU
+    $update=Get-MSCatalogUpdate -Search "Cumulative Update for Microsoft server operating system version 21H2 for x64-based Systems" | Select-Object -First 1
+    $FolderItem = $item.FolderID
+    $DestinationFolder="$folder\$FolderItem\$($update.title.Substring(0,7))"
+    $UpdatePattern = $DestinationFolder -replace '^.*(?=.{7}$)'
+       
+    if(Test-Path $destinationFolder){
+    }else {
+        New-Item -Path $DestinationFolder -ItemType Directory -ErrorAction Ignore | Out-Null
+        Write-Output "Downloading $($update.title) to $destinationFolder"
+        Write-Host $update
+        $update | Save-MSCatalogUpdate -Destination "$DestinationFolder" #-UseBits
+        
+        $update=Get-MSCatalogUpdate -Search $item.SSUSearchString | Where-Object Products -eq $item.ID | Select-Object -First 1
+        if ($update){
+            Write-Output "Downloading $($update.title) to $destinationFolder"
+            Write-Host $update
+            $update | Save-MSCatalogUpdate -Destination $DestinationFolder #-UseBits
+        }
+
+    }
+}
+#endregion
+    #Parameters
+    #VHD size
+    $size=60GB
+    $OSVersions = "WS2022"
+
+    #region Functions
+    $RunTimeDate = get-date -Format "ddMMyyyy"
+    function Out-Date{
+        $Date = Get-Date -Format "dd.MM.yyyy hh:mm:ss"
+        return $Date
+    }
+    function Out-Log($message){
+        $LogRoot = (Get-ItemProperty -Path hklm:software\RMLab\Templates\Updates -Name "Path").Path
+        if (Test-Path $LogRoot\Logs) {}else{New-Item -Path $LogRoot -ItemType Directory -Name Logs }
+        $message | Out-File -FilePath "$LogRoot\Logs\$RunTimeDate-VHDXTemplate.txt" -Append
+    }
+    function WriteInfo($message){
+        $curTime = Out-Date
+        $message = "$curTime |   INFO   | $message"
+        Out-Log $message
+        Write-Host $message
+    }
+
+    function WriteInfoHighlighted($message){
+        $curTime = Out-Date
+        $message = "$curTime |   INFO   | $message"
+        Out-Log $message
+        Write-Host $message -ForegroundColor Cyan
+    }
+
+    function WriteSuccess($message){
+        $curTime = Out-Date
+        $message = "$curTime | SUCCESS  | $message"
+        Out-Log $message
+        Write-Host $message -ForegroundColor Green
+    }
+
+    function WriteError($message){
+        $curTime = Out-Date
+        $message = "$curTime |  ERROR   | $message"
+        Out-Log $message
+        Write-Host $message -ForegroundColor Red
+    }
+
+    function WriteErrorAndExit($message){
+        $curTime = Out-Date
+        $message = "$curTime | CRITICAL | $message"
+        Out-Log $message
+        Write-Host $message -ForegroundColor Red
+        Exit
+    }
+
+  # Verify Running as Admin
+    $isAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")
+    If (!( $isAdmin )) {
+        Write-Host "-- Restarting as Administrator" -ForegroundColor Cyan ; Start-Sleep -Seconds 1
+        Start-Process powershell.exe "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs 
+        exit
+    }
+
+    If ((Get-ExecutionPolicy) -ne "RemoteSigned"){
+        Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process
+    }
+        #region download convert-windowsimage if needed and load it
+        
+        if (!(Test-Path "$PSScriptRoot\convert-windowsimage.ps1")){
+            WriteInfo "`t Downloading Convert-WindowsImage"
+            try{
+                Invoke-WebRequest -UseBasicParsing -Uri https://raw.githubusercontent.com/MicrosoftDocs/Virtualization-Documentation/live/hyperv-tools/Convert-WindowsImage/Convert-WindowsImage.ps1 -OutFile "$PSScriptRoot\convert-windowsimage.ps1"
+            }catch{
+                WriteErrorAndExit "`t Failed to download convert-windowsimage.ps1!"
+            }
+        }
+
+        #load convert-windowsimage
+        . "$PSScriptRoot\convert-windowsimage.ps1"
+
+    #endregion
+
+    #region Ask for ISO
+    #grab folder to download to
+    foreach($OSVersion in $OSVersions){
+        if(Test-path hklm:software\RMLab\Templates\$OSVersion)
+        {
+            $openfile = (Get-ItemProperty -Path hklm:software\RMLab\Templates\$OSVersion -Name "Path").Path
+        }
+        else
+        {
+            WriteInfoHighlighted "Please select ISO image"
+            [reflection.assembly]::loadwithpartialname("System.Windows.Forms")
+            $OSName = "Windows Server 2022"
+            Start-BitsTransfer -Source "https://go.microsoft.com/fwlink/p/?LinkID=2195280&clcid=0x409&culture=en-us&country=US" -Destination C:\Temp\win2022.iso
+            New-Item -Path hklm:software -Name RMLab -ErrorAction SilentlyContinue
+            New-Item -Path hklm:software\RMLab -Name Templates -ErrorAction SilentlyContinue
+            New-Item -Path hklm:software\RMLab\Templates -Name $OSVersion -ErrorAction SilentlyContinue
+            Set-ItemProperty -Path hklm:software\RMLab\Templates\$OSVersion -Name "Path" -Value "C:\Temp\win2022.iso"
+
+        }
+    }
+        
+    foreach($OSVersion in $OSVersions){
+        $openfile = (Get-ItemProperty -Path hklm:software\RMLab\Templates\$OSVersion -Name "Path").Path
+        $UpdateFolder = (Get-ItemProperty -Path hklm:software\RMLab\Templates\Updates -Name "Path").Path
+        $LatestMSU = (Get-Item -Path $UpdateFolder\$OSVersion\* | Sort-Object -Property LastWriteTime -Descending | select -First 1).Name
+
+        #VHD imagename
+        switch ($OSVersion) {
+        "WS2022" { $vhdname = "WS2022-$LatestMSU-G2.vhdx";$TemplateName = "WIN2022-G2";$KMSKey = "W3GNR-8DDXR-2TFRP-H8P33-DV9BG" }
+        Default {$vhdname="WIN.vhdx"}
+        }
+        WriteInfo "$vhdname | Size: $size | setup started"
+                
+        if(Test-Path $UpdateFolder\$OSVersion\$LatestMSU\*.vhdx){
+            WriteInfo "$vhdname is already existing"
+            if((Get-Item $UpdateFolder\$OSVersion\*).count -gt 1){
+                Get-Item $UpdateFolder\$OSVersion\* | Select-Object -First 1 | Remove-Item -Force -Confirm:$False
+            }
+            $VHDxs = (Get-Item $UpdateFolder\$OSVersion\$LatestMSU\*).Count
+            if($VHDxs -gt 1){
+                #Get-Item $UpdateFolder\$OSVersion\$LatestMSU\* | Select-Object -Last 1 | Remove-Item -Force -Confirm:$False
+            }
+            $VHDxs = (Get-Item $UpdateFolder\$OSVersion\$LatestMSU\*.vhdx).Count
+        }else{
+            $VHDxs = (Get-Item $UpdateFolder\$OSVersion\$LatestMSU\*).Count
+            if($VHDxs -gt 1){
+                #Get-Item $UpdateFolder\$OSVersion\$LatestMSU\* | Select-Object -Last 1 | Remove-Item -Force -Confirm:$False
+            }
+            $ISO = Mount-DiskImage -ImagePath $openFile -PassThru
+            $ISOMediaPath = (Get-Volume -DiskImage $ISO).DriveLetter+':'
+        }
+
+        #region ask for MSU packages
+            if(Test-Path $UpdateFolder\$OSVersion)
+            {
+                $msupackages = Get-Item -Path $UpdateFolder\$OSVersion\$LatestMSU\*.msu
+                WriteInfoHighlighted  "Following patches selected:"
+                foreach ($filename in $msupackages.Name){
+                    WriteInfo "`t $filename"
+                }
+            }
+    
+            #Write info if nothing is selected
+            if (!$msupackages.Name){
+                WriteInfoHighlighted "No msu was selected..."
+            }
+    
+            #sort packages by size (to apply Servicing Stack Update first)
+            if ($msupackages.Name){
+                $files=@()
+                foreach ($Filename in $msupackages.Name){$files+=Get-ChildItem -Path $UpdateFolder\$OSVersion\$LatestMSU\$filename}
+                $packages=($files |Sort-Object -Property Length).Fullname
+            }
+    
+        #endregion
+        #region do the job
+            if(Test-Path $UpdateFolder\$OSVersion\$LatestMSU\$vhdname){
+            WriteInfo "$vhdname is already existing"
+                <#$VHDxs = (Get-Item $UpdateFolder\$OSVersion\$LatestMSU\*).Count
+                if($VHDxs -gt 1){
+                    Get-Item $UpdateFolder\$OSVersion\$LatestMSU\* | Select-Object -Last 1 | Remove-Item -Force -Confirm:$False
+                }#>
+            }else{
+            if(Test-Path $UpdateFolder\$OSVersion\$LatestMSU\*.vhdx){
+                $VHDXss = Get-Item "$UpdateFolder\$OSVersion\$LatestMSU\*.vhdx"
+                foreach($VHDX in $VHDXss){
+                    $VHDxsName = $VHDX.Name
+                    if($VHDxsName -eq $vhdname){
+                    }else{
+                        Remove-Item $UpdateFolder\$OSVersion\$LatestMSU\$VHDxsName -Force -Confirm:$False
+                    }
+                }
+            }
+              $BuildNumber=(Get-ItemProperty -Path "$ISOMediaPath\setup.exe").versioninfo.FileBuildPart
+    
+            $WindowsImage=Get-WindowsImage -ImagePath "$ISOMediaPath\sources\install.wim"
+
+            if ($BuildNumber -lt 7600){
+                if ($ISO -ne $Null){
+                    $ISO | Dismount-DiskImage
+                }
+                WriteErrorAndExit "`t Use Windows 7 or newer!"
+            }
+            #ask for edition
+            if($OSVersion -like "AZ*"){
+                $Edition=($WindowsImage | Where-Object ImageIndex -eq "1").ImageName
+            }else{
+                $Edition=($WindowsImage | Where-Object ImageIndex -eq "4").ImageName
+            }
+            if (-not ($Edition)){
+                $ISO | Dismount-DiskImage
+                WriteErrorAndExit "Edition not selected. Exitting "
+            }
+    
+        #Create VHD
+            if ($packages){
+                if ($BuildNumber -le 7601){
+                    Convert-WindowsImage -SourcePath "$ISOMediaPath\sources\install.wim" -Edition $Edition -VHDPath "$UpdateFolder\$OSVersion\$LatestMSU\$vhdname" -SizeBytes $size -VHDFormat VHDX -DiskLayout BIOS -Package $packages
+                    If(Test-Path "$UpdateFolder\$OSVersion\$LatestMSU\$vhdname"){WriteSuccess -message "$vhdname created successfully"}else{WriteError -message "$vhdname creation failed"}
+                }else{
+                    Convert-WindowsImage -SourcePath "$ISOMediaPath\sources\install.wim" -Edition $Edition -VHDPath "$UpdateFolder\$OSVersion\$LatestMSU\$vhdname" -SizeBytes $size -VHDFormat VHDX -DiskLayout UEFI -Package $packages
+                    If(Test-Path "$UpdateFolder\$OSVersion\$LatestMSU\$vhdname"){WriteSuccess -message "$vhdname created successfully"}else{WriteError -message "$vhdname creation failed"}
+                }
+            }else{
+                if ($BuildNumber -le 7601){
+                    Convert-WindowsImage -SourcePath "$ISOMediaPath\sources\install.wim" -Edition $Edition -VHDPath "$UpdateFolder\$OSVersion\$LatestMSU\$vhdname" -SizeBytes $size -VHDFormat VHDX -DiskLayout BIOS
+                    If(Test-Path "$UpdateFolder\$OSVersion\$LatestMSU\$vhdname"){WriteSuccess -message "$vhdname created successfully"}else{WriteError -message "$vhdname creation failed"}
+                }else{
+                    Convert-WindowsImage -SourcePath "$ISOMediaPath\sources\install.wim" -Edition $Edition -VHDPath "$UpdateFolder\$OSVersion\$LatestMSU\$vhdname" -SizeBytes $size -VHDFormat VHDX -DiskLayout UEFI
+                    If(Test-Path "$UpdateFolder\$OSVersion\$LatestMSU\$vhdname"){WriteSuccess -message "$vhdname created successfully"}else{WriteError -message "$vhdname creation failed"}
+                }
+            }
+            
+            WriteInfo "Dismounting ISO Image"
+            if ($ISO -ne $Null){
+            $ISO | Dismount-DiskImage
+            WriteInfo "$OSVersion is finished"
+            }
+
+            #
+            # Copy VHD to VMM Library
+            #
+
+            if(Test-Connection $LibraryServer){
+                if(Test-Path "$LibraryPath\$vhdname"){
+                WriteInfo "$vhdname is already existing"
+                }else{
+                WriteInfo -message "Copy $vhdname to $LibraryPath"
+                if(Test-Path $LibraryPath){
+                    Copy-Item -Path "$UpdateFolder\$OSVersion\$LatestMSU\$vhdname" -Destination "$LibraryPath" 
+                }else{
+                    New-Item -Path $LibraryPath -ItemType Directory
+                    WriteInfo -message "The folder $LibraryPath has been created"
+                    Copy-Item -Path "$UpdateFolder\$OSVersion\$LatestMSU\$vhdname" -Destination "$LibraryPath"
+                }
+                if(Test-Path "$LibraryPath\$vhdname"){
+                    WriteInfo -message "$vhdname was succesfully copied to $LibraryPath"
+                }else{
+                    WriteError -message "$vhdname could not be copied to $LibraryPath"
+                } 
+            }
+         }
+      }            
+    }
+#endregion
 
     Remove-Item -Path HKLM:\Software\Autoconf -Force -Confirm:$false
     New-Item -Path HKLM:\Software -Name Autoconf -Force
