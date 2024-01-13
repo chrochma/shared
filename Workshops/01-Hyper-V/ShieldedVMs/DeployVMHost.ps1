@@ -932,7 +932,7 @@ Register-ScheduledTask -Action $action -Trigger $trigger -TaskName "AutoConfigSc
 New-Item -Path HKLM:\Software -Name Autoconf -Force
 New-Item -Path HKLM:\Software\Autoconf -Value "01-InitialSetup" -Force
 New-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" -Value "1" -Name "AutoAdminLogon"				#
-Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" -Value "Administrator" -Name "DefaultUserName"		# insert username
+Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" -Value "labadmin" -Name "DefaultUserName"		# insert username
 New-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" -Value $Password -Name "DefaultPassword"	# insert password
 Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" -Name EnableLUA -Value 0					#
 Restart-Computer -Confirm:$false
