@@ -37,7 +37,7 @@ else
 
 # CONTINUE AS ADMIN
 
-if(Test-Path 'HKLM:\Software\Autoconf')
+if(Test-Path 'HKLM:\Software\Autoconf'){
 {
 Set-Location C:\temp\Staging
 $nextstep = (Get-ItemProperty -Path 'HKLM:\Software\Autoconf' -Name "(default)")."(default)"
@@ -893,7 +893,7 @@ Foreach($SelectedProduct in $SelectedProducts){
     New-Item -Path HKLM:\Software -Name Autoconf -Force
     New-Item -Path HKLM:\Software\Autoconf -Value "finalize" -Force
     Restart-Computer -Confirm:$false -Force
-
+}
 
 ##############################################################################################################################################################
 #------------------------------------------------------------------------------------------------------------------------------------------------------CLEANUP
@@ -919,9 +919,7 @@ if($nextstep -eq "finalize")
     [System.Windows.Forms.MessageBox]::Show("Configuration completed!")
     pause
     Restart-Computer -Confirm:$false -Force
-    }	###########################################################################################################################################################
-		#------------------------------------------------------------------------------------------------------------------------------------------------------FIN
-		###########################################################################################################################################################
+    }	
 else
 {
 Set-ExecutionPolicy -ExecutionPolicy Unrestricted -Force -Confirm:$false
