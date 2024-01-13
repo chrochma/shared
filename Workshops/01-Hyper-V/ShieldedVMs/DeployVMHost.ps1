@@ -108,8 +108,9 @@ if($nextstep -eq "02-Networking"){
         $Result
     }
 
-    New-VMSwitch -SwitchName "NATSwitch"-SwitchTyper Internal
-    New-NetIPAddress -IPAddress "172.16.100.1" -PrefixLength 24 -InterfaceAlias "vEthernet (NATSwitch)"
+    New-VMSwitch -SwitchName "Corp-Network"-SwitchType Internal
+    New-NetIPAddress -IPAddress "172.16.100.1" -PrefixLength 24 -InterfaceAlias "vEthernet (Corp-Network)"
+    New-NetNat -Name "Corp-Network" -InternalIPInterfaceAddressPrefix 172.16.100.0/24
 
     Remove-Item -Path HKLM:\Software\Autoconf -Force -Confirm:$false
     New-Item -Path HKLM:\Software -Name Autoconf -Force
@@ -407,30 +408,303 @@ Foreach($SelectedProduct in $SelectedProducts){
             $ISO | Dismount-DiskImage
             WriteInfo "$OSVersion is finished"
             }
-
-            #
-            # Copy VHD to VMM Library
-            #
-
-            if(Test-Connection $LibraryServer){
-                if(Test-Path "$LibraryPath\$vhdname"){
-                WriteInfo "$vhdname is already existing"
-                }else{
-                WriteInfo -message "Copy $vhdname to $LibraryPath"
-                if(Test-Path $LibraryPath){
-                    Copy-Item -Path "$UpdateFolder\$OSVersion\$LatestMSU\$vhdname" -Destination "$LibraryPath" 
-                }else{
-                    New-Item -Path $LibraryPath -ItemType Directory
-                    WriteInfo -message "The folder $LibraryPath has been created"
-                    Copy-Item -Path "$UpdateFolder\$OSVersion\$LatestMSU\$vhdname" -Destination "$LibraryPath"
-                }
-                if(Test-Path "$LibraryPath\$vhdname"){
-                    WriteInfo -message "$vhdname was succesfully copied to $LibraryPath"
-                }else{
-                    WriteError -message "$vhdname could not be copied to $LibraryPath"
-                } 
             }
          }
+
+    # Create VM Foundation
+    $DriveLetterLocation = (Get-Volume | Where-Object DriveLetter | Sort-Object -Descending SizeRemaining | Select-Object -First 1).DriveLetter
+    $VMLocation = $DriveLetterLocation+":\VMs"
+
+    if(!(Test-Path $VMLocation))
+    {
+        New-Item -Path $VMLocation -ItemType Directory
+        New-Item -Path $VMLocation -Name "Image" -ItemType Directory
+        $HostGuard = New-HgsGuardian -Name 'VMLocalGuardian' -GenerateCertificates
+
+        
+        '<?xml version="1.0" encoding="utf-8"?>'| Out-File -FilePath $VMLocation\Image\unattend.xml -Encoding utf8
+        '<unattend xmlns="urn:schemas-microsoft-com:unattend" xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">'| Out-File -FilePath $VMLocation\Image\unattend.xml -Encoding utf8 -Append
+        '	<!--https://schneegans.de/windows/unattend-generator/?LanguageMode=Unattended&UILanguage=en-US&UserLocale=de-DE&KeyboardLayout=0407%3A00000407&ProcessorArchitecture=amd64&ComputerNameMode=Custom&ComputerName=TESTNAME&TimeZoneMode=Explicit&TimeZone=W.+Europe+Standard+Time&PartitionMode=Interactive&WindowsEditionMode=Interactive&UserAccountMode=Unattended&AccountName0=&AccountName1=&AccountName2=&AccountName3=&AccountName4=&AutoLogonMode=Builtin&BuiltinAdministratorPassword=Pa%24%24w0rd%21%21%21%21%21&LockoutMode=Default&EnableRemoteDesktop=true&WifiMode=Interactive&ExpressSettings=DisableAll&WdacMode=Skip-->'| Out-File -FilePath $VMLocation\Image\unattend.xml -Encoding utf8 -Append
+        '	<settings pass="offlineServicing"></settings>'| Out-File -FilePath $VMLocation\Image\unattend.xml -Encoding utf8 -Append
+        '	<settings pass="windowsPE">'| Out-File -FilePath $VMLocation\Image\unattend.xml -Encoding utf8 -Append
+        '		<component name="Microsoft-Windows-International-Core-WinPE" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">'| Out-File -FilePath $VMLocation\Image\unattend.xml -Encoding utf8 -Append
+        '			<SetupUILanguage>'| Out-File -FilePath $VMLocation\Image\unattend.xml -Encoding utf8 -Append
+        '				<UILanguage>en-US</UILanguage>'| Out-File -FilePath $VMLocation\Image\unattend.xml -Encoding utf8 -Append
+        '			</SetupUILanguage>'| Out-File -FilePath $VMLocation\Image\unattend.xml -Encoding utf8 -Append
+        '			<InputLocale>0407:00000407</InputLocale>'| Out-File -FilePath $VMLocation\Image\unattend.xml -Encoding utf8 -Append
+        '			<SystemLocale>de-DE</SystemLocale>'| Out-File -FilePath $VMLocation\Image\unattend.xml -Encoding utf8 -Append
+        '			<UILanguage>en-US</UILanguage>'| Out-File -FilePath $VMLocation\Image\unattend.xml -Encoding utf8 -Append
+        '			<UserLocale>de-DE</UserLocale>'| Out-File -FilePath $VMLocation\Image\unattend.xml -Encoding utf8 -Append
+        '		</component>'| Out-File -FilePath $VMLocation\Image\unattend.xml -Encoding utf8 -Append
+        '	</settings>'| Out-File -FilePath $VMLocation\Image\unattend.xml -Encoding utf8 -Append
+        '	<settings pass="generalize"></settings>'| Out-File -FilePath $VMLocation\Image\unattend.xml -Encoding utf8 -Append
+        '	<settings pass="specialize">'| Out-File -FilePath $VMLocation\Image\unattend.xml -Encoding utf8 -Append
+        '		<component name="Microsoft-Windows-Deployment" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">'| Out-File -FilePath $VMLocation\Image\unattend.xml -Encoding utf8 -Append
+        '			<RunSynchronous>'| Out-File -FilePath $VMLocation\Image\unattend.xml -Encoding utf8 -Append
+        '				<RunSynchronousCommand wcm:action="add">'| Out-File -FilePath $VMLocation\Image\unattend.xml -Encoding utf8 -Append
+        '					<Order>1</Order>'| Out-File -FilePath $VMLocation\Image\unattend.xml -Encoding utf8 -Append
+        '					<Path>netsh.exe advfirewall firewall set rule group="Remote Desktop" new enable=Yes</Path>'| Out-File -FilePath $VMLocation\Image\unattend.xml -Encoding utf8 -Append
+        '				</RunSynchronousCommand>'| Out-File -FilePath $VMLocation\Image\unattend.xml -Encoding utf8 -Append
+        '				<RunSynchronousCommand wcm:action="add">'| Out-File -FilePath $VMLocation\Image\unattend.xml -Encoding utf8 -Append
+        '					<Order>2</Order>'| Out-File -FilePath $VMLocation\Image\unattend.xml -Encoding utf8 -Append
+        '					<Path>reg.exe add "HKLM\SYSTEM\CurrentControlSet\Control\Terminal Server" /v fDenyTSConnections /t REG_DWORD /d 0 /f</Path>'| Out-File -FilePath $VMLocation\Image\unattend.xml -Encoding utf8 -Append
+        '				</RunSynchronousCommand>'| Out-File -FilePath $VMLocation\Image\unattend.xml -Encoding utf8 -Append
+        '			</RunSynchronous>'| Out-File -FilePath $VMLocation\Image\unattend.xml -Encoding utf8 -Append
+        '		</component>'| Out-File -FilePath $VMLocation\Image\unattend.xml -Encoding utf8 -Append
+        '		<component name="Microsoft-Windows-Shell-Setup" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">'| Out-File -FilePath $VMLocation\Image\unattend.xml -Encoding utf8 -Append
+        '			<ComputerName>XSERVERNAMEX</ComputerName>'| Out-File -FilePath $VMLocation\Image\unattend.xml -Encoding utf8 -Append
+        '			<TimeZone>W. Europe Standard Time</TimeZone>'| Out-File -FilePath $VMLocation\Image\unattend.xml -Encoding utf8 -Append
+        '		</component>'| Out-File -FilePath $VMLocation\Image\unattend.xml -Encoding utf8 -Append
+        '	</settings>'| Out-File -FilePath $VMLocation\Image\unattend.xml -Encoding utf8 -Append
+        '	<settings pass="auditSystem"></settings>'| Out-File -FilePath $VMLocation\Image\unattend.xml -Encoding utf8 -Append
+        '	<settings pass="auditUser"></settings>'| Out-File -FilePath $VMLocation\Image\unattend.xml -Encoding utf8 -Append
+        '	<settings pass="oobeSystem">'| Out-File -FilePath $VMLocation\Image\unattend.xml -Encoding utf8 -Append
+        '		<component name="Microsoft-Windows-International-Core" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">'| Out-File -FilePath $VMLocation\Image\unattend.xml -Encoding utf8 -Append
+        '			<InputLocale>0407:00000407</InputLocale>'| Out-File -FilePath $VMLocation\Image\unattend.xml -Encoding utf8 -Append
+        '			<SystemLocale>de-DE</SystemLocale>'| Out-File -FilePath $VMLocation\Image\unattend.xml -Encoding utf8 -Append
+        '			<UILanguage>en-US</UILanguage>'| Out-File -FilePath $VMLocation\Image\unattend.xml -Encoding utf8 -Append
+        '			<UserLocale>de-DE</UserLocale>'| Out-File -FilePath $VMLocation\Image\unattend.xml -Encoding utf8 -Append
+        '		</component>'| Out-File -FilePath $VMLocation\Image\unattend.xml -Encoding utf8 -Append
+        '		<component name="Microsoft-Windows-Shell-Setup" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">'| Out-File -FilePath $VMLocation\Image\unattend.xml -Encoding utf8 -Append
+        '			<UserAccounts>'| Out-File -FilePath $VMLocation\Image\unattend.xml -Encoding utf8 -Append
+        '				<AdministratorPassword>'| Out-File -FilePath $VMLocation\Image\unattend.xml -Encoding utf8 -Append
+        '					<Value>Pa$$w0rd!!!!!</Value>'| Out-File -FilePath $VMLocation\Image\unattend.xml -Encoding utf8 -Append
+        '					<PlainText>true</PlainText>'| Out-File -FilePath $VMLocation\Image\unattend.xml -Encoding utf8 -Append
+        '				</AdministratorPassword>'| Out-File -FilePath $VMLocation\Image\unattend.xml -Encoding utf8 -Append
+        '			</UserAccounts>'| Out-File -FilePath $VMLocation\Image\unattend.xml -Encoding utf8 -Append
+        '			<OOBE>'| Out-File -FilePath $VMLocation\Image\unattend.xml -Encoding utf8 -Append
+        '				<ProtectYourPC>3</ProtectYourPC>'| Out-File -FilePath $VMLocation\Image\unattend.xml -Encoding utf8 -Append
+        '				<HideEULAPage>true</HideEULAPage>'| Out-File -FilePath $VMLocation\Image\unattend.xml -Encoding utf8 -Append
+        '				<HideWirelessSetupInOOBE>false</HideWirelessSetupInOOBE>'| Out-File -FilePath $VMLocation\Image\unattend.xml -Encoding utf8 -Append
+        '			</OOBE>'| Out-File -FilePath $VMLocation\Image\unattend.xml -Encoding utf8 -Append
+        '		</component>'| Out-File -FilePath $VMLocation\Image\unattend.xml -Encoding utf8 -Append
+        '	</settings>'| Out-File -FilePath $VMLocation\Image\unattend.xml -Encoding utf8 -Append
+        '</unattend>'| Out-File -FilePath $VMLocation\Image\unattend.xml -Encoding utf8 -Append
+
+        $SourceDisc = Get-Item -Path "C:\WS2022\*.vhdx"
+        $ImagePath = "$VMLocation\Image\"+$SourceDisc.Name
+        Copy-Item -Path $SourceDisc.FullName -Destination $ImagePath -ErrorAction SilentlyContinue
+    }
+    # Create VMs
+        #R-DC-1
+        $VMName = "R-DC-1"
+        $CPUCores = "4"
+        [Int64]$RAMinGB = "4"
+
+        # Prepare OSDisk
+        New-Item -Path $VMLocation -Name $VMName -ItemType Directory
+        $DestinationDisc = "$VMLocation\$VMName\"+$SourceDisc.Name
+        Copy-Item -Path $ImagePath -Destination $DestinationDisc -ErrorAction SilentlyContinue
+        Mount-VHD $DestinationDisc 
+        $VHDMountLetter = (Get-Volume | Where-Object Size -EQ 64062746624).DriveLetter
+        $VHDDestinationPath = $VHDMountLetter+":\Windows\Panther\"
+        New-Item $VHDDestinationPath -ItemType Directory
+        #Copy-Item "$VMLocation\Image\unattend.xml" -destination $VHDDestinationPath
+        $unattendtochange = Get-Content "$VMLocation\Image\unattend.xml"
+        foreach($Line in $unattendtochange){
+            $Line = $Line -replace "XSERVERNAMEX",$VMName
+            $Line | Out-File -FilePath $VHDDestinationPath\unattend.xml -Append -Encoding utf8
+        }
+        Dismount-VHD $DestinationDisc
+
+        New-VM -Name $VMName -Generation 2 -VHDPath $DestinationDisc -SwitchName "Corp-Network" -Path "$VMLocation\$VMName\"
+        $KeyProtector = New-HgsKeyProtector -Owner $HostGuard -AllowUntrustedRoot
+        Set-VMKeyProtector -VMName $VMName -KeyProtector $KeyProtector.RawData
+        Enable-VMTPM -VMNAME $VMName 
+        Set-VMNetworkAdapter -VMName $VMName -MacAddressSpoofing On
+        $RaminGB =  $RAMinGB*1024*1024*1024
+        Set-VMMemory -VMName $VMName -StartupBytes $RAMinGB -DynamicMemoryEnabled $false
+        Set-VMProcessor -VMName $VMName -Count $CPUCores -ExposeVirtualizationExtensions:$true
+        Start-VM -Name $VMName
+        
+        #R-HGS-1
+        $VMName = "R-HGS-1"
+        $CPUCores = "4"
+        [Int64]$RAMinGB = "4"
+
+        # Prepare OSDisk
+        New-Item -Path $VMLocation -Name $VMName -ItemType Directory
+        $DestinationDisc = "$VMLocation\$VMName\"+$SourceDisc.Name
+        Copy-Item -Path $ImagePath -Destination $DestinationDisc -ErrorAction SilentlyContinue
+        Mount-VHD $DestinationDisc 
+        $VHDMountLetter = (Get-Volume | Where-Object Size -EQ 64062746624).DriveLetter
+        $VHDDestinationPath = $VHDMountLetter+":\Windows\Panther\"
+        New-Item $VHDDestinationPath -ItemType Directory
+        #Copy-Item "$VMLocation\Image\unattend.xml" -destination $VHDDestinationPath
+        $unattendtochange = Get-Content "$VMLocation\Image\unattend.xml"
+        foreach($Line in $unattendtochange){
+            $Line = $Line -replace "XSERVERNAMEX",$VMName
+            $Line | Out-File -FilePath $VHDDestinationPath\unattend.xml -Append -Encoding utf8
+        }
+        Dismount-VHD $DestinationDisc
+
+        New-VM -Name $VMName -Generation 2 -VHDPath $DestinationDisc -SwitchName "Corp-Network" -Path "$VMLocation\$VMName\"
+        $KeyProtector = New-HgsKeyProtector -Owner $HostGuard -AllowUntrustedRoot
+        Set-VMKeyProtector -VMName $VMName -KeyProtector $KeyProtector.RawData
+        Enable-VMTPM -VMNAME $VMName 
+        Set-VMNetworkAdapter -VMName $VMName -MacAddressSpoofing On
+        $RaminGB =  $RAMinGB*1024*1024*1024
+        Set-VMMemory -VMName $VMName -StartupBytes $RAMinGB -DynamicMemoryEnabled $false
+        Set-VMProcessor -VMName $VMName -Count $CPUCores -ExposeVirtualizationExtensions:$true
+        Start-VM -Name $VMName
+      
+        #R-HGS-2
+        $VMName = "R-HGS-2"
+        $CPUCores = "4"
+        [Int64]$RAMinGB = "4"
+
+        # Prepare OSDisk
+        New-Item -Path $VMLocation -Name $VMName -ItemType Directory
+        $DestinationDisc = "$VMLocation\$VMName\"+$SourceDisc.Name
+        Copy-Item -Path $ImagePath -Destination $DestinationDisc -ErrorAction SilentlyContinue
+        Mount-VHD $DestinationDisc 
+        $VHDMountLetter = (Get-Volume | Where-Object Size -EQ 64062746624).DriveLetter
+        $VHDDestinationPath = $VHDMountLetter+":\Windows\Panther\"
+        New-Item $VHDDestinationPath -ItemType Directory
+        #Copy-Item "$VMLocation\Image\unattend.xml" -destination $VHDDestinationPath
+        $unattendtochange = Get-Content "$VMLocation\Image\unattend.xml"
+        foreach($Line in $unattendtochange){
+            $Line = $Line -replace "XSERVERNAMEX",$VMName
+            $Line | Out-File -FilePath $VHDDestinationPath\unattend.xml -Append -Encoding utf8
+        }
+        Dismount-VHD $DestinationDisc
+
+        New-VM -Name $VMName -Generation 2 -VHDPath $DestinationDisc -SwitchName "Corp-Network" -Path "$VMLocation\$VMName\"
+        $KeyProtector = New-HgsKeyProtector -Owner $HostGuard -AllowUntrustedRoot
+        Set-VMKeyProtector -VMName $VMName -KeyProtector $KeyProtector.RawData
+        Enable-VMTPM -VMNAME $VMName 
+        Set-VMNetworkAdapter -VMName $VMName -MacAddressSpoofing On
+        $RaminGB =  $RAMinGB*1024*1024*1024
+        Set-VMMemory -VMName $VMName -StartupBytes $RAMinGB -DynamicMemoryEnabled $false
+        Set-VMProcessor -VMName $VMName -Count $CPUCores -ExposeVirtualizationExtensions:$true
+        Start-VM -Name $VMName
+      
+       #G-WKS-1
+        $VMName = "G-WKS-1"
+        $CPUCores = "4"
+        [Int64]$RAMinGB = "8"
+
+        # Prepare OSDisk
+        New-Item -Path $VMLocation -Name $VMName -ItemType Directory
+        $DestinationDisc = "$VMLocation\$VMName\"+$SourceDisc.Name
+        Copy-Item -Path $ImagePath -Destination $DestinationDisc -ErrorAction SilentlyContinue
+        Mount-VHD $DestinationDisc 
+        $VHDMountLetter = (Get-Volume | Where-Object Size -EQ 64062746624).DriveLetter
+        $VHDDestinationPath = $VHDMountLetter+":\Windows\Panther\"
+        New-Item $VHDDestinationPath -ItemType Directory
+        #Copy-Item "$VMLocation\Image\unattend.xml" -destination $VHDDestinationPath
+        $unattendtochange = Get-Content "$VMLocation\Image\unattend.xml"
+        foreach($Line in $unattendtochange){
+            $Line = $Line -replace "XSERVERNAMEX",$VMName
+            $Line | Out-File -FilePath $VHDDestinationPath\unattend.xml -Append -Encoding utf8
+        }
+        Dismount-VHD $DestinationDisc
+
+        New-VM -Name $VMName -Generation 2 -VHDPath $DestinationDisc -SwitchName "Corp-Network" -Path "$VMLocation\$VMName\"
+        $KeyProtector = New-HgsKeyProtector -Owner $HostGuard -AllowUntrustedRoot
+        Set-VMKeyProtector -VMName $VMName -KeyProtector $KeyProtector.RawData
+        Enable-VMTPM -VMNAME $VMName 
+        Set-VMNetworkAdapter -VMName $VMName -MacAddressSpoofing On
+        $RaminGB =  $RAMinGB*1024*1024*1024
+        Set-VMMemory -VMName $VMName -StartupBytes $RAMinGB -DynamicMemoryEnabled $false
+        Set-VMProcessor -VMName $VMName -Count $CPUCores -ExposeVirtualizationExtensions:$true
+        Start-VM -Name $VMName
+      
+       #B-DC-1
+        $VMName = "B-DC-1"
+        $CPUCores = "4"
+        [Int64]$RAMinGB = "4"
+
+        # Prepare OSDisk
+        New-Item -Path $VMLocation -Name $VMName -ItemType Directory
+        $DestinationDisc = "$VMLocation\$VMName\"+$SourceDisc.Name
+        Copy-Item -Path $ImagePath -Destination $DestinationDisc -ErrorAction SilentlyContinue
+        Mount-VHD $DestinationDisc 
+        $VHDMountLetter = (Get-Volume | Where-Object Size -EQ 64062746624).DriveLetter
+        $VHDDestinationPath = $VHDMountLetter+":\Windows\Panther\"
+        New-Item $VHDDestinationPath -ItemType Directory
+        #Copy-Item "$VMLocation\Image\unattend.xml" -destination $VHDDestinationPath
+        $unattendtochange = Get-Content "$VMLocation\Image\unattend.xml"
+        foreach($Line in $unattendtochange){
+            $Line = $Line -replace "XSERVERNAMEX",$VMName
+            $Line | Out-File -FilePath $VHDDestinationPath\unattend.xml -Append -Encoding utf8
+        }
+        Dismount-VHD $DestinationDisc
+
+        New-VM -Name $VMName -Generation 2 -VHDPath $DestinationDisc -SwitchName "Corp-Network" -Path "$VMLocation\$VMName\"
+        $KeyProtector = New-HgsKeyProtector -Owner $HostGuard -AllowUntrustedRoot
+        Set-VMKeyProtector -VMName $VMName -KeyProtector $KeyProtector.RawData
+        Enable-VMTPM -VMNAME $VMName 
+        Set-VMNetworkAdapter -VMName $VMName -MacAddressSpoofing On
+        $RaminGB =  $RAMinGB*1024*1024*1024
+        Set-VMMemory -VMName $VMName -StartupBytes $RAMinGB -DynamicMemoryEnabled $false
+        Set-VMProcessor -VMName $VMName -Count $CPUCores -ExposeVirtualizationExtensions:$true
+        Start-VM -Name $VMName
+      
+       #B-HYP-1
+        $VMName = "B-HYP-1"
+        $CPUCores = "4"
+        [Int64]$RAMinGB = "16"
+
+        # Prepare OSDisk
+        New-Item -Path $VMLocation -Name $VMName -ItemType Directory
+        $DestinationDisc = "$VMLocation\$VMName\"+$SourceDisc.Name
+        Copy-Item -Path $ImagePath -Destination $DestinationDisc -ErrorAction SilentlyContinue
+        Mount-VHD $DestinationDisc 
+        $VHDMountLetter = (Get-Volume | Where-Object Size -EQ 64062746624).DriveLetter
+        $VHDDestinationPath = $VHDMountLetter+":\Windows\Panther\"
+        New-Item $VHDDestinationPath -ItemType Directory
+        #Copy-Item "$VMLocation\Image\unattend.xml" -destination $VHDDestinationPath
+        $unattendtochange = Get-Content "$VMLocation\Image\unattend.xml"
+        foreach($Line in $unattendtochange){
+            $Line = $Line -replace "XSERVERNAMEX",$VMName
+            $Line | Out-File -FilePath $VHDDestinationPath\unattend.xml -Append -Encoding utf8
+        }
+        Dismount-VHD $DestinationDisc
+
+        New-VM -Name $VMName -Generation 2 -VHDPath $DestinationDisc -SwitchName "Corp-Network" -Path "$VMLocation\$VMName\"
+        $KeyProtector = New-HgsKeyProtector -Owner $HostGuard -AllowUntrustedRoot
+        Set-VMKeyProtector -VMName $VMName -KeyProtector $KeyProtector.RawData
+        Enable-VMTPM -VMNAME $VMName 
+        Set-VMNetworkAdapter -VMName $VMName -MacAddressSpoofing On
+        $RaminGB =  $RAMinGB*1024*1024*1024
+        Set-VMMemory -VMName $VMName -StartupBytes $RAMinGB -DynamicMemoryEnabled $false
+        Set-VMProcessor -VMName $VMName -Count $CPUCores -ExposeVirtualizationExtensions:$true
+        Start-VM -Name $VMName
+      
+       #B-HYP-2
+        $VMName = "B-HYP-2"
+        $CPUCores = "4"
+        [Int64]$RAMinGB = "16"
+
+        # Prepare OSDisk
+        New-Item -Path $VMLocation -Name $VMName -ItemType Directory
+        $DestinationDisc = "$VMLocation\$VMName\"+$SourceDisc.Name
+        Copy-Item -Path $ImagePath -Destination $DestinationDisc -ErrorAction SilentlyContinue
+        Mount-VHD $DestinationDisc 
+        $VHDMountLetter = (Get-Volume | Where-Object Size -EQ 64062746624).DriveLetter
+        $VHDDestinationPath = $VHDMountLetter+":\Windows\Panther\"
+        New-Item $VHDDestinationPath -ItemType Directory
+        #Copy-Item "$VMLocation\Image\unattend.xml" -destination $VHDDestinationPath
+        $unattendtochange = Get-Content "$VMLocation\Image\unattend.xml"
+        foreach($Line in $unattendtochange){
+            $Line = $Line -replace "XSERVERNAMEX",$VMName
+            $Line | Out-File -FilePath $VHDDestinationPath\unattend.xml -Append -Encoding utf8
+        }
+        Dismount-VHD $DestinationDisc
+
+        New-VM -Name $VMName -Generation 2 -VHDPath $DestinationDisc -SwitchName "Corp-Network" -Path "$VMLocation\$VMName\"
+        $KeyProtector = New-HgsKeyProtector -Owner $HostGuard -AllowUntrustedRoot
+        Set-VMKeyProtector -VMName $VMName -KeyProtector $KeyProtector.RawData
+        Enable-VMTPM -VMNAME $VMName 
+        Set-VMNetworkAdapter -VMName $VMName -MacAddressSpoofing On
+        $RaminGB =  $RAMinGB*1024*1024*1024
+        Set-VMMemory -VMName $VMName -StartupBytes $RAMinGB -DynamicMemoryEnabled $false
+        Set-VMProcessor -VMName $VMName -Count $CPUCores -ExposeVirtualizationExtensions:$true
+        Start-VM -Name $VMName
+    
+
+
       }            
     }
 #endregion
