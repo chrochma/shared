@@ -85,10 +85,10 @@ if($nextstep -eq "01-InitialSetup")
 
     Remove-Item -Path HKLM:\Software\Autoconf -Force -Confirm:$false
     New-Item -Path HKLM:\Software -Name Autoconf -Force
-    New-Item -Path HKLM:\Software\Autoconf -Value "02-Networking" -Force
+    New-Item -Path HKLM:\Software\Autoconf -Value "03-Updates" -Force
     Restart-Computer -Confirm:$false -Force
 }
-
+<#
 if($nextstep -eq "02-Networking"){ 
     # Retry Multiple times to install Updates
     $Searcher = New-Object -ComObject Microsoft.Update.Searcher
@@ -119,8 +119,6 @@ if($nextstep -eq "02-Networking"){
     Restart-Computer -Confirm:$false -Force
 }
 
-
-<#
 if((Get-ItemProperty -Path 'HKLM:\Software\Autoconf\RestartCount' -Name "(default)" -ErrorAction SilentlyContinue)."(default)" -gt 10){
     Remove-Item -Path HKLM:\Software\Autoconf -Force -Confirm:$false
     New-Item -Path HKLM:\Software -Name Autoconf -Force
