@@ -1,3 +1,4 @@
+Set-ExecutionPolicy -ExecutionPolicy Unrestricted -Force -Confirm:$false
 # 1. Initial Configuration per Hyper-V Host
 # --------------------------------------
 # Get the ID and security principal of the current user account
