@@ -670,6 +670,8 @@ Foreach($SelectedProduct in $SelectedProducts){
         $RaminGB =  $RAMinGB*1024*1024*1024
         Set-VMMemory -VMName $VMName -StartupBytes $RAMinGB -DynamicMemoryEnabled $false
         Set-VMProcessor -VMName $VMName -Count $CPUCores -ExposeVirtualizationExtensions:$true
+        New-VHD -Dynamic -Path "$VMLocation\$VMName\DATA1.vhdx" -SizeBytes 500GB 
+        Add-VMHardDiskDrive -vmname $VMName -path "$VMLocation\$VMName\DATA1.vhdx"
         Start-VM -Name $VMName
       
        #B-HYP-2
@@ -701,6 +703,8 @@ Foreach($SelectedProduct in $SelectedProducts){
         $RaminGB =  $RAMinGB*1024*1024*1024
         Set-VMMemory -VMName $VMName -StartupBytes $RAMinGB -DynamicMemoryEnabled $false
         Set-VMProcessor -VMName $VMName -Count $CPUCores -ExposeVirtualizationExtensions:$true
+        New-VHD -Dynamic -Path "$VMLocation\$VMName\DATA1.vhdx" -SizeBytes 500GB 
+        Add-VMHardDiskDrive -vmname $VMName -path "$VMLocation\$VMName\DATA1.vhdx"
         Start-VM -Name $VMName
     
         # Configure VMs
@@ -731,6 +735,20 @@ Foreach($SelectedProduct in $SelectedProducts){
         Invoke-Command -VMName R-DC-1 -Credential $psCred -ScriptBlock {
             Get-DnsServerforwarder | remove-dnsServerforwarder -force
             Add-DNSServerforwarder -IPAddress 1.1.1.1
+            New-ADOrganizationalUnit -Name "Corp" -Path "DC=RED,DC=CONTOSO,DC=COM"
+            New-ADOrganizationalUnit -Name "Accounts" -Path "CN=CORP,DC=RED,DC=CONTOSO,DC=COM"
+            New-ADOrganizationalUnit -Name "Administrators" -Path "CN=ACCOUNTS,CN=CORP,DC=RED,DC=CONTOSO,DC=COM"
+            New-ADOrganizationalUnit -Name "ServiceAccounts" -Path "CN=ACCOUNTS,CN=CORP,DC=RED,DC=CONTOSO,DC=COM"
+            New-ADOrganizationalUnit -Name "Users" -Path "CN=ACCOUNTS,CN=CORP,DC=RED,DC=CONTOSO,DC=COM"
+            New-ADOrganizationalUnit -Name "Groups" -Path "CN=CORP,DC=RED,DC=CONTOSO,DC=COM"
+            New-ADOrganizationalUnit -Name "Servers" -Path "CN=CORP,DC=RED,DC=CONTOSO,DC=COM"
+            New-ADOrganizationalUnit -Name "Tier-0" -Path "CN=SERVERS,CN=CORP,DC=RED,DC=CONTOSO,DC=COM"
+            New-ADOrganizationalUnit -Name "Tier-1" -Path "CN=SERVERS,CN=CORP,DC=RED,DC=CONTOSO,DC=COM"
+            New-ADOrganizationalUnit -Name "Tier-2" -Path "CN=SERVERS,CN=CORP,DC=RED,DC=CONTOSO,DC=COM"
+            New-ADOrganizationalUnit -Name "Workstations" -Path "CN=CORP,DC=RED,DC=CONTOSO,DC=COM"
+            New-ADOrganizationalUnit -Name "Tier-0" -Path "CN=WORKSTATIONS,CN=CORP,DC=RED,DC=CONTOSO,DC=COM"
+            New-ADOrganizationalUnit -Name "Tier-1" -Path "CN=WORKSTATIONS,CN=CORP,DC=RED,DC=CONTOSO,DC=COM"
+            New-ADOrganizationalUnit -Name "Tier-2" -Path "CN=WORKSTATIONS,CN=CORP,DC=RED,DC=CONTOSO,DC=COM"
             Install-AdcsCertificationAuthority -CAType EnterpriseRootCA -KeyLength 4096 -HashAlgorithmName SHA256 -ValidityPeriod Years -ValidityPeriodUnits 10 -CryptoProviderName "RSA#Microsoft Software Key Storage Provider" -OverwriteExistingKey -CACommonName "Red-CA-2024" -Force:$true
         }
 
@@ -760,6 +778,20 @@ Foreach($SelectedProduct in $SelectedProducts){
         Invoke-Command -VMName B-DC-1 -Credential $psCred -ScriptBlock {
             Get-DnsServerforwarder | remove-dnsServerforwarder -force
             Add-DNSServerforwarder -IPAddress 172.16.100.11
+            New-ADOrganizationalUnit -Name "Corp" -Path "DC=BLUE,DC=CONTOSO,DC=COM"
+            New-ADOrganizationalUnit -Name "Accounts" -Path "CN=CORP,DC=BLUE,DC=CONTOSO,DC=COM"
+            New-ADOrganizationalUnit -Name "Administrators" -Path "CN=ACCOUNTS,CN=CORP,DC=BLUE,DC=CONTOSO,DC=COM"
+            New-ADOrganizationalUnit -Name "ServiceAccounts" -Path "CN=ACCOUNTS,CN=CORP,DC=BLUE,DC=CONTOSO,DC=COM"
+            New-ADOrganizationalUnit -Name "Users" -Path "CN=ACCOUNTS,CN=CORP,DC=BLUE,DC=CONTOSO,DC=COM"
+            New-ADOrganizationalUnit -Name "Groups" -Path "CN=CORP,DC=BLUE,DC=CONTOSO,DC=COM"
+            New-ADOrganizationalUnit -Name "Servers" -Path "CN=CORP,DC=BLUE,DC=CONTOSO,DC=COM"
+            New-ADOrganizationalUnit -Name "Tier-0" -Path "CN=SERVERS,CN=CORP,DC=BLUE,DC=CONTOSO,DC=COM"
+            New-ADOrganizationalUnit -Name "Tier-1" -Path "CN=SERVERS,CN=CORP,DC=BLUE,DC=CONTOSO,DC=COM"
+            New-ADOrganizationalUnit -Name "Tier-2" -Path "CN=SERVERS,CN=CORP,DC=BLUE,DC=CONTOSO,DC=COM"
+            New-ADOrganizationalUnit -Name "Workstations" -Path "CN=CORP,DC=BLUE,DC=CONTOSO,DC=COM"
+            New-ADOrganizationalUnit -Name "Tier-0" -Path "CN=WORKSTATIONS,CN=CORP,DC=BLUE,DC=CONTOSO,DC=COM"
+            New-ADOrganizationalUnit -Name "Tier-1" -Path "CN=WORKSTATIONS,CN=CORP,DC=BLUE,DC=CONTOSO,DC=COM"
+            New-ADOrganizationalUnit -Name "Tier-2" -Path "CN=WORKSTATIONS,CN=CORP,DC=BLUE,DC=CONTOSO,DC=COM"
         }
 
         # R-HGS-1
@@ -771,6 +803,10 @@ Foreach($SelectedProduct in $SelectedProducts){
             New-NetIPAddress -IPAddress "172.16.100.12" -InterfaceAlias "Ethernet" -PrefixLength "24" -DefaultGateway "172.16.100.1" -AddressFamily IPv4
             Set-DnsClientServerAddress -InterfaceAlias "Ethernet" -ServerAddresses "172.16.100.11"
             ### Install Features
+            $UserName = "red\Administrator"
+            $Password = ConvertTo-SecureString 'Pa$$w0rd!!!!!' -AsPlainText -Force
+            $psCred = New-Object System.Management.Automation.PSCredential($UserName, $Password)
+            Add-computer -DomainName "red.contoso.com" -Credential $psCred -OUPath "CN=Tier-0,CN=SERVERS,CN=CORP,DC=RED,DC=CONTOSO,DC=COM" -Restart
         }
 
         # R-HGS-2
@@ -782,6 +818,10 @@ Foreach($SelectedProduct in $SelectedProducts){
             New-NetIPAddress -IPAddress "172.16.100.13" -InterfaceAlias "Ethernet" -PrefixLength "24" -DefaultGateway "172.16.100.1" -AddressFamily IPv4
             Set-DnsClientServerAddress -InterfaceAlias "Ethernet" -ServerAddresses "172.16.100.11"
             ### Install Features
+            $UserName = "red\Administrator"
+            $Password = ConvertTo-SecureString 'Pa$$w0rd!!!!!' -AsPlainText -Force
+            $psCred = New-Object System.Management.Automation.PSCredential($UserName, $Password)
+            Add-computer -DomainName "red.contoso.com" -Credential $psCred -OUPath "CN=Tier-0,CN=SERVERS,CN=CORP,DC=RED,DC=CONTOSO,DC=COM" -Restart
         }
 
         # G-WKS-1
@@ -806,6 +846,19 @@ Foreach($SelectedProduct in $SelectedProducts){
             ### Install Features
             Install-WindowsFeature -name "Hyper-V" -IncludeManagementTools -IncludeAllSubFeature -Restart
         }
+        do{
+            Start-Sleep -Seconds 15
+        }until((Test-NetConnection 172.16.100.22) -eq $true)
+        $UserName = "blue\Administrator"
+        $Password = ConvertTo-SecureString 'Pa$$w0rd!!!!!' -AsPlainText -Force
+        $psCred = New-Object System.Management.Automation.PSCredential($UserName, $Password)
+        Invoke-Command -VMName B-HYP-1 -Credential $psCred -ScriptBlock {
+            Set-ItemProperty -Path HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard -Name RequirePlatformSecurityFeatures -Value 0
+            $UserName = "blue\Administrator"
+            $Password = ConvertTo-SecureString 'Pa$$w0rd!!!!!' -AsPlainText -Force
+            $psCred = New-Object System.Management.Automation.PSCredential($UserName, $Password)
+            Add-computer -DomainName "blue.contoso.com" -Credential $psCred -OUPath "CN=Tier-1,CN=SERVERS,CN=CORP,DC=BLUE,DC=CONTOSO,DC=COM" -Restart
+        }
 
         # B-HYP-2
         $UserName = "Administrator"
@@ -817,6 +870,19 @@ Foreach($SelectedProduct in $SelectedProducts){
             Set-DnsClientServerAddress -InterfaceAlias "Ethernet" -ServerAddresses "172.16.100.21"
             ### Install Features
             Install-WindowsFeature -name "Hyper-V" -IncludeManagementTools -IncludeAllSubFeature -Restart
+        }
+        do{
+            Start-Sleep -Seconds 15
+        }until((Test-NetConnection 172.16.100.23) -eq $true)
+        $UserName = "blue\Administrator"
+        $Password = ConvertTo-SecureString 'Pa$$w0rd!!!!!' -AsPlainText -Force
+        $psCred = New-Object System.Management.Automation.PSCredential($UserName, $Password)
+        Invoke-Command -VMName B-HYP-2 -Credential $psCred -ScriptBlock {
+            Set-ItemProperty -Path HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard -Name RequirePlatformSecurityFeatures -Value 0
+            $UserName = "blue\Administrator"
+            $Password = ConvertTo-SecureString 'Pa$$w0rd!!!!!' -AsPlainText -Force
+            $psCred = New-Object System.Management.Automation.PSCredential($UserName, $Password)
+            Add-computer -DomainName "blue.contoso.com" -Credential $psCred -OUPath "CN=Tier-1,CN=SERVERS,CN=CORP,DC=BLUE,DC=CONTOSO,DC=COM" -Restart
         }
 
       }            
