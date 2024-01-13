@@ -118,13 +118,14 @@ if($nextstep -eq "02-Networking"){
     Restart-Computer -Confirm:$false -Force
 }
 
+
+<#
 if((Get-ItemProperty -Path 'HKLM:\Software\Autoconf\RestartCount' -Name "(default)" -ErrorAction SilentlyContinue)."(default)" -gt 10){
     Remove-Item -Path HKLM:\Software\Autoconf -Force -Confirm:$false
     New-Item -Path HKLM:\Software -Name Autoconf -Force
     New-Item -Path HKLM:\Software\Autoconf -Value "Cancel" -Force
     Restart-Computer -Confirm:$false -Force
 }
-<#
 if($nextstep -eq "03-Updates"){
     Write-Host "Installing Windows Updates, that can take a while" -ForegroundColor Cyan
     $Searcher = New-Object -ComObject Microsoft.Update.Searcher
