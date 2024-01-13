@@ -925,18 +925,15 @@ else
 Set-ExecutionPolicy -ExecutionPolicy Unrestricted -Force -Confirm:$false
 New-Item -Path c:\temp -Name Staging -ItemType directory -Verbose -Force -ErrorAction SilentlyContinue
 Move-Item -Path $MyInvocation.MyCommand.Path -Destination c:\temp\Staging\Autoconf.ps1 -Verbose												#insert serverpath from script
-$passcode = (New-Guid).Guid
-$passcodesec = Convertto-securestring -string $passcode -asplaintext -force
-New-LocalUser -Name hvstaging -password $passcodesec
-Add-LocalGroupMember -Group Administrators -Member hvstaging
+$Password = ConvertTo-SecureString 'Pa$$w0rd!!!!!' -AsPlainText -Force
 $action = New-ScheduledTaskAction -Execute 'Powershell.exe' -Argument 'c:\temp\Staging\Autoconf.ps1' -Verbose
 $trigger = New-ScheduledTaskTrigger -AtLogOn -Verbose
-Register-ScheduledTask -Action $action -Trigger $trigger -TaskName "AutoConfigScedular" -Description "startstherighttaskforautoconfig" -Verbose -user hvstaging -RunLevel Highest
+Register-ScheduledTask -Action $action -Trigger $trigger -TaskName "AutoConfigScedular" -Description "startstherighttaskforautoconfig" -Verbose -RunLevel Highest
 New-Item -Path HKLM:\Software -Name Autoconf -Force
 New-Item -Path HKLM:\Software\Autoconf -Value "01-InitialSetup" -Force
 New-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" -Value "1" -Name "AutoAdminLogon"				#
-Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" -Value "hvstaging" -Name "DefaultUserName"		# insert username
-New-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" -Value $passcode -Name "DefaultPassword"	# insert password
+Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" -Value "Administrator" -Name "DefaultUserName"		# insert username
+New-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" -Value $Password -Name "DefaultPassword"	# insert password
 Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" -Name EnableLUA -Value 0					#
 Restart-Computer -Confirm:$false
 }
