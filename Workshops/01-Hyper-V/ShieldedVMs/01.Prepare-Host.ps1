@@ -1,3 +1,5 @@
+Set-ExecutionPolicy -ExecutionPolicy Unrestricted -Force -Confirm:$false
+
 Set-ItemProperty -Path "HKCU:\Software\Microsoft\ServerManager" -Name DoNotOpenAtLogon -Value 1        
     $Date = Get-Date -Format "dd.MM.yyyy hh:mm:ss"
     "Starting Initial Configuration of $Computername, $Date" | Out-File -FilePath $Loglocation\InitialConfiguration.log -Append
