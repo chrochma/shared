@@ -521,7 +521,7 @@ if(!(Test-Path $VMLocation))
         Install-ADDSForest -DomainName "red.contoso.com" -SafeModeAdministratorPassword $Password -Force:$true -installDns:$true 
     }
 
-        Start-Sleep -Seconds 60
+        Start-Sleep -Seconds 180
 
     $UserName = "red\Administrator"
     $Password = ConvertTo-SecureString 'Pa$$w0rd!!!!!' -AsPlainText -Force
@@ -565,7 +565,7 @@ if(!(Test-Path $VMLocation))
         Install-ADDSForest -DomainName "blue.contoso.com" -SafeModeAdministratorPassword $Password -Force:$true -installDns:$true 
     }
 
-        Start-Sleep -Seconds 60
+        Start-Sleep -Seconds 180
 
     $UserName = "blue\Administrator"
     $Password = ConvertTo-SecureString 'Pa$$w0rd!!!!!' -AsPlainText -Force
@@ -638,9 +638,6 @@ if(!(Test-Path $VMLocation))
         Install-WindowsFeature -name "Hyper-V" -IncludeManagementTools -IncludeAllSubFeature -Restart
     }
         Start-Sleep -Seconds 60
-    $UserName = "blue\Administrator"
-    $Password = ConvertTo-SecureString 'Pa$$w0rd!!!!!' -AsPlainText -Force
-    $psCred = New-Object System.Management.Automation.PSCredential($UserName, $Password)
     Invoke-Command -VMName B-HYP-1 -Credential $psCred -ScriptBlock {
         Set-ItemProperty -Path HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard -Name RequirePlatformSecurityFeatures -Value 0
         $UserName = "blue\Administrator"
@@ -667,9 +664,6 @@ if(!(Test-Path $VMLocation))
         Install-WindowsFeature -name "Hyper-V" -IncludeManagementTools -IncludeAllSubFeature -Restart
     }
         Start-Sleep -Seconds 60
-    $UserName = "blue\Administrator"
-    $Password = ConvertTo-SecureString 'Pa$$w0rd!!!!!' -AsPlainText -Force
-    $psCred = New-Object System.Management.Automation.PSCredential($UserName, $Password)
     Invoke-Command -VMName B-HYP-2 -Credential $psCred -ScriptBlock {
         Set-ItemProperty -Path HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard -Name RequirePlatformSecurityFeatures -Value 0
         $UserName = "blue\Administrator"
