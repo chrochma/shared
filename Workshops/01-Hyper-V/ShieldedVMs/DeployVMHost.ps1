@@ -48,12 +48,6 @@ $nextstep = (Get-ItemProperty -Path 'HKLM:\Software\Autoconf' -Name "(default)")
 
 if($nextstep -eq "01-InitialSetup"){
     Set-ItemProperty -Path "HKCU:\Software\Microsoft\ServerManager" -Name DoNotOpenAtLogon -Value 1        
-    if(Test-Path $Loglocation) {
-        Write-Host "Loglocation $Loglocation exists" -ForegroundColor Cyan
-    } else {
-        Write-Host "Loglocation $Loglocation does not exist, creating it" -ForegroundColor Cyan
-        New-Item -Path $Loglocation -ItemType Directory
-    }
     $Date = Get-Date -Format "dd.MM.yyyy hh:mm:ss"
     "Starting Initial Configuration of $Computername, $Date" | Out-File -FilePath $Loglocation\InitialConfiguration.log -Append
 
@@ -62,16 +56,13 @@ if($nextstep -eq "01-InitialSetup"){
         Enable-WindowsOptionalFeature -FeatureName Microsoft-Hyper-V -Online -NoRestart 
     }
     Write-Host "Hyper-V Feature installed" -ForegroundColor Cyan
-    "Hyper-V Feature installed" | Out-File -FilePath $Loglocation\InitialConfiguration.log -Append
-
+    
     Install-WindowsFeature -Name "Hyper-V-PowerShell","System-Insights","RSAT-System-Insights","Hyper-V-Tools" -IncludeManagementTools -IncludeAllSubFeature
     Write-Host "Additional Features installed" -ForegroundColor Cyan
-    "Additional Features installed" | Out-File -FilePath $Loglocation\InitialConfiguration.log -Append
-
+    
     Set-TimeZone -Id "W. Europe Standard Time"
     Write-Host "Timezone set to W. Europe Standard Time" -ForegroundColor Cyan
-    "Timezone set to W. Europe Standard Time" | Out-File -FilePath $Loglocation\InitialConfiguration.log -Append
-
+    
     Set-VMHost -EnableEnhancedSessionMode:$true
 
     get-disk | Where-Object PartitionStyle -like RAW | Initialize-Disk -PartitionStyle GPT | New-Partition -UseMaximumSize -AssignDriveLetter
@@ -80,8 +71,7 @@ if($nextstep -eq "01-InitialSetup"){
     foreach($Disk in $Disks){
         $Disk | New-Partition -UseMaximumSize -AssignDriveLetter | Format-Volume -FileSystem NTFS -AllocationUnitSize 65536 -NewFileSystemLabel "DATA" -Confirm:$false 
     }
-    "Restarting Computer" | Out-File -FilePath $Loglocation\InitialConfiguration.log -Append
-
+    
     Remove-Item -Path HKLM:\Software\Autoconf -Force -Confirm:$false
     New-Item -Path HKLM:\Software -Name Autoconf -Force
     New-Item -Path HKLM:\Software\Autoconf -Value "03-Updates" -Force
@@ -607,7 +597,7 @@ Foreach($SelectedProduct in $SelectedProducts){
         $RaminGB =  $RAMinGB*1024*1024*1024
         Set-VMMemory -VMName $VMName -StartupBytes $RAMinGB -DynamicMemoryEnabled $false
         Set-VMProcessor -VMName $VMName -Count $CPUCores -ExposeVirtualizationExtensions:$true
-        Start-VM -Name $VMName
+        #Start-VM -Name $VMName
       
        #B-DC-1
         $VMName = "B-DC-1"
@@ -718,7 +708,6 @@ Foreach($SelectedProduct in $SelectedProducts){
             ### Install Features
 
             # Install Windows Server based certificate authority
-            Install-WindowsFeature -name "ADCS-Cert-Authority" -IncludeManagementTools 
             Install-WindowsFeature -Name "AD-Domain-Services","DNS" -IncludeManagementTools -IncludeAllSubFeature -Restart
             $Password = ConvertTo-SecureString 'Pa$$w0rd!!!!!' -AsPlainText -Force
             Install-ADDSForest -DomainName "red.contoso.com" -SafeModeAdministratorPassword $Password -Force:$true -installDns:$true 
@@ -732,6 +721,7 @@ Foreach($SelectedProduct in $SelectedProducts){
         $Password = ConvertTo-SecureString 'Pa$$w0rd!!!!!' -AsPlainText -Force
         $psCred = New-Object System.Management.Automation.PSCredential($UserName, $Password)
         Invoke-Command -VMName R-DC-1 -Credential $psCred -ScriptBlock {
+            Install-WindowsFeature -name "ADCS-Cert-Authority" -IncludeManagementTools 
             Get-DnsServerforwarder | remove-dnsServerforwarder -force
             Add-DNSServerforwarder -IPAddress 1.1.1.1
             New-ADOrganizationalUnit -Name "Corp" -Path "DC=RED,DC=CONTOSO,DC=COM"
@@ -823,6 +813,7 @@ Foreach($SelectedProduct in $SelectedProducts){
             Add-computer -DomainName "red.contoso.com" -Credential $psCred -OUPath "CN=Tier-0,CN=SERVERS,CN=CORP,DC=RED,DC=CONTOSO,DC=COM" -Restart
         }
 
+        <#
         # G-WKS-1
         $UserName = "Administrator"
         $Password = ConvertTo-SecureString 'Pa$$w0rd!!!!!' -AsPlainText -Force
@@ -832,7 +823,8 @@ Foreach($SelectedProduct in $SelectedProducts){
             New-NetIPAddress -IPAddress "172.16.100.32" -InterfaceAlias "Ethernet" -PrefixLength "24" -DefaultGateway "172.16.100.1" -AddressFamily IPv4
             Set-DnsClientServerAddress -InterfaceAlias "Ethernet" -ServerAddresses "172.16.100.21"
             ### Install Features
-        }
+            Stop-Computer -Confirm:$false
+        }#>
 
         # B-HYP-1
         $UserName = "Administrator"
