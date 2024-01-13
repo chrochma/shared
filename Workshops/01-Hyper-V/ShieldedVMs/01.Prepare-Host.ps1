@@ -14,7 +14,6 @@ Set-ItemProperty -Path "HKCU:\Software\Microsoft\ServerManager" -Name DoNotOpenA
     Set-TimeZone -Id "W. Europe Standard Time"
     Write-Host "Timezone set to W. Europe Standard Time" -ForegroundColor Cyan
     
-    Set-VMHost -EnableEnhancedSessionMode:$true
 
     get-disk | Where-Object PartitionStyle -like RAW | Initialize-Disk -PartitionStyle GPT | New-Partition -UseMaximumSize -AssignDriveLetter
 

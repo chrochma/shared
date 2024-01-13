@@ -1,4 +1,4 @@
-
+Set-VMHost -EnableEnhancedSessionMode:$true
 New-VMSwitch -SwitchName "Corp-Network"-SwitchType Internal
 New-NetIPAddress -IPAddress "172.16.100.1" -PrefixLength 24 -InterfaceAlias "vEthernet (Corp-Network)"
 New-NetNat -Name "Corp-Network" -InternalIPInterfaceAddressPrefix 172.16.100.0/24
