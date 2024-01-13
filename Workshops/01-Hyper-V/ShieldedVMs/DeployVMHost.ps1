@@ -46,8 +46,7 @@ $nextstep = (Get-ItemProperty -Path 'HKLM:\Software\Autoconf' -Name "(default)")
 # START
 
 
-if($nextstep -eq "01-InitialSetup")
-    {
+if($nextstep -eq "01-InitialSetup"){
     Set-ItemProperty -Path "HKCU:\Software\Microsoft\ServerManager" -Name DoNotOpenAtLogon -Value 1        
     if(Test-Path $Loglocation) {
         Write-Host "Loglocation $Loglocation exists" -ForegroundColor Cyan
@@ -65,7 +64,7 @@ if($nextstep -eq "01-InitialSetup")
     Write-Host "Hyper-V Feature installed" -ForegroundColor Cyan
     "Hyper-V Feature installed" | Out-File -FilePath $Loglocation\InitialConfiguration.log -Append
 
-    Install-WindowsFeature -Name "Hyper-V-PowerShell","System-Insights","RSAT-System-Insights" -IncludeManagementTools
+    Install-WindowsFeature -Name "Hyper-V-PowerShell","System-Insights","RSAT-System-Insights","Hyper-V-Tools" -IncludeManagementTools -IncludeAllSubFeature
     Write-Host "Additional Features installed" -ForegroundColor Cyan
     "Additional Features installed" | Out-File -FilePath $Loglocation\InitialConfiguration.log -Append
 
@@ -108,10 +107,6 @@ if($nextstep -eq "02-Networking"){
         $Result = $Installer.Install()
         $Result
     }
-
-    New-VMSwitch -SwitchName "Corp-Network"-SwitchType Internal
-    New-NetIPAddress -IPAddress "172.16.100.1" -PrefixLength 24 -InterfaceAlias "vEthernet (Corp-Network)"
-    New-NetNat -Name "Corp-Network" -InternalIPInterfaceAddressPrefix 172.16.100.0/24
 
     Remove-Item -Path HKLM:\Software\Autoconf -Force -Confirm:$false
     New-Item -Path HKLM:\Software -Name Autoconf -Force
@@ -164,6 +159,10 @@ if($nextstep -eq "03-Updates"){
 }#>
 
 if($nextstep -eq "03-Updates"){
+
+    New-VMSwitch -SwitchName "Corp-Network"-SwitchType Internal
+    New-NetIPAddress -IPAddress "172.16.100.1" -PrefixLength 24 -InterfaceAlias "vEthernet (Corp-Network)"
+    New-NetNat -Name "Corp-Network" -InternalIPInterfaceAddressPrefix 172.16.100.0/24
 
 #region download products
 Foreach($SelectedProduct in $SelectedProducts){
