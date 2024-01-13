@@ -124,7 +124,7 @@ if((Get-ItemProperty -Path 'HKLM:\Software\Autoconf\RestartCount' -Name "(defaul
     New-Item -Path HKLM:\Software\Autoconf -Value "Cancel" -Force
     Restart-Computer -Confirm:$false -Force
 }
-
+<#
 if($nextstep -eq "03-Updates"){
     Write-Host "Installing Windows Updates, that can take a while" -ForegroundColor Cyan
     $Searcher = New-Object -ComObject Microsoft.Update.Searcher
@@ -161,9 +161,9 @@ if($nextstep -eq "03-Updates"){
         Restart-Computer -Confirm:$false -Force
     }
     Restart-Computer -Confirm:$false -Force
-}
+}#>
 
-if($nextstep -eq "04-SetupVM-Images"){
+if($nextstep -eq "03-Updates"){
 
 #region download products
 Foreach($SelectedProduct in $SelectedProducts){
