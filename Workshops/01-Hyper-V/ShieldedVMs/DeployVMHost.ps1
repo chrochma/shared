@@ -72,7 +72,7 @@ if($nextstep -eq "01-InitialSetup")
     Write-Host "Timezone set to W. Europe Standard Time" -ForegroundColor Cyan
     "Timezone set to W. Europe Standard Time" | Out-File -FilePath $Loglocation\InitialConfiguration.log -Append
 
-    "Restarting Computer" | Out-File -FilePath $Loglocation\InitialConfiguration.log -Append
+    Set-VMHost -EnableEnhancedSessionMode:$true
 
     get-disk | Where-Object PartitionStyle -like RAW | Initialize-Disk -PartitionStyle GPT | New-Partition -UseMaximumSize -AssignDriveLetter
 
@@ -80,7 +80,7 @@ if($nextstep -eq "01-InitialSetup")
     foreach($Disk in $Disks){
         $Disk | New-Partition -UseMaximumSize -AssignDriveLetter | Format-Volume -FileSystem NTFS -AllocationUnitSize 65536 -NewFileSystemLabel "DATA" -Confirm:$false 
     }
-
+    "Restarting Computer" | Out-File -FilePath $Loglocation\InitialConfiguration.log -Append
 
     Remove-Item -Path HKLM:\Software\Autoconf -Force -Confirm:$false
     New-Item -Path HKLM:\Software -Name Autoconf -Force
@@ -516,7 +516,7 @@ Foreach($SelectedProduct in $SelectedProducts){
         Set-VMMemory -VMName $VMName -StartupBytes $RAMinGB -DynamicMemoryEnabled $false
         Set-VMProcessor -VMName $VMName -Count $CPUCores -ExposeVirtualizationExtensions:$true
         Start-VM -Name $VMName
-        
+
         #R-HGS-1
         $VMName = "R-HGS-1"
         $CPUCores = "4"
@@ -703,7 +703,121 @@ Foreach($SelectedProduct in $SelectedProducts){
         Set-VMProcessor -VMName $VMName -Count $CPUCores -ExposeVirtualizationExtensions:$true
         Start-VM -Name $VMName
     
+        # Configure VMs
+        # R-DC-1
+        $UserName = "Administrator"
+        $Password = ConvertTo-SecureString 'Pa$$w0rd!!!!!' -AsPlainText -Force
+        $psCred = New-Object System.Management.Automation.PSCredential($UserName, $Password)
 
+        Invoke-Command -VMName R-DC-1 -Credential $psCred -ScriptBlock {
+            New-NetIPAddress -IPAddress "172.16.100.11" -InterfaceAlias "Ethernet" -PrefixLength "24" -DefaultGateway "172.16.100.1" -AddressFamily IPv4
+            Set-DnsClientServerAddress -InterfaceAlias "Ethernet" -ServerAddresses "172.16.100.11"
+            ### Install Features
+
+            # Install Windows Server based certificate authority
+            Install-WindowsFeature -name "ADCS-Cert-Authority" -IncludeManagementTools 
+            Install-WindowsFeature -Name "AD-Domain-Services","DNS" -IncludeManagementTools -IncludeAllSubFeature -Restart
+            $Password = ConvertTo-SecureString 'Pa$$w0rd!!!!!' -AsPlainText -Force
+            Install-ADDSForest -DomainName "red.contoso.com" -SafeModeAdministratorPassword $Password -Force:$true -installDns:$true 
+        }
+
+        do{
+            Start-Sleep -Seconds 15
+        }until((Test-NetConnection 172.16.100.11 -Port 3389) -eq $true)
+
+        $UserName = "red\Administrator"
+        $Password = ConvertTo-SecureString 'Pa$$w0rd!!!!!' -AsPlainText -Force
+        $psCred = New-Object System.Management.Automation.PSCredential($UserName, $Password)
+        Invoke-Command -VMName R-DC-1 -Credential $psCred -ScriptBlock {
+            Get-DnsServerforwarder | remove-dnsServerforwarder -force
+            Add-DNSServerforwarder -IPAddress 1.1.1.1
+            Install-AdcsCertificationAuthority -CAType EnterpriseRootCA -KeyLength 4096 -HashAlgorithmName SHA256 -ValidityPeriod Years -ValidityPeriodUnits 10 -CryptoProviderName "RSA#Microsoft Software Key Storage Provider" -OverwriteExistingKey -CACommonName "Red-CA-2024" -Force:$true
+        }
+
+        # B-DC-1
+        $UserName = "Administrator"
+        $Password = ConvertTo-SecureString 'Pa$$w0rd!!!!!' -AsPlainText -Force
+        $psCred = New-Object System.Management.Automation.PSCredential($UserName, $Password)
+
+        Invoke-Command -VMName B-DC-1 -Credential $psCred -ScriptBlock {
+            New-NetIPAddress -IPAddress "172.16.100.21" -InterfaceAlias "Ethernet" -PrefixLength "24" -DefaultGateway "172.16.100.1" -AddressFamily IPv4
+            Set-DnsClientServerAddress -InterfaceAlias "Ethernet" -ServerAddresses "172.16.100.21"
+            ### Install Features
+
+            # Install Windows Server based certificate authority
+            Install-WindowsFeature -Name "AD-Domain-Services","DNS" -IncludeManagementTools -IncludeAllSubFeature -Restart
+            $Password = ConvertTo-SecureString 'Pa$$w0rd!!!!!' -AsPlainText -Force
+            Install-ADDSForest -DomainName "blue.contoso.com" -SafeModeAdministratorPassword $Password -Force:$true -installDns:$true 
+        }
+
+        do{
+            Start-Sleep -Seconds 15
+        }until((Test-NetConnection 172.16.100.21 -Port 3389) -eq $true)
+
+        $UserName = "blue\Administrator"
+        $Password = ConvertTo-SecureString 'Pa$$w0rd!!!!!' -AsPlainText -Force
+        $psCred = New-Object System.Management.Automation.PSCredential($UserName, $Password)
+        Invoke-Command -VMName B-DC-1 -Credential $psCred -ScriptBlock {
+            Get-DnsServerforwarder | remove-dnsServerforwarder -force
+            Add-DNSServerforwarder -IPAddress 172.16.100.11
+        }
+
+        # R-HGS-1
+        $UserName = "Administrator"
+        $Password = ConvertTo-SecureString 'Pa$$w0rd!!!!!' -AsPlainText -Force
+        $psCred = New-Object System.Management.Automation.PSCredential($UserName, $Password)
+
+        Invoke-Command -VMName R-HGS-1 -Credential $psCred -ScriptBlock {
+            New-NetIPAddress -IPAddress "172.16.100.12" -InterfaceAlias "Ethernet" -PrefixLength "24" -DefaultGateway "172.16.100.1" -AddressFamily IPv4
+            Set-DnsClientServerAddress -InterfaceAlias "Ethernet" -ServerAddresses "172.16.100.11"
+            ### Install Features
+        }
+
+        # R-HGS-2
+        $UserName = "Administrator"
+        $Password = ConvertTo-SecureString 'Pa$$w0rd!!!!!' -AsPlainText -Force
+        $psCred = New-Object System.Management.Automation.PSCredential($UserName, $Password)
+
+        Invoke-Command -VMName R-HGS-2 -Credential $psCred -ScriptBlock {
+            New-NetIPAddress -IPAddress "172.16.100.13" -InterfaceAlias "Ethernet" -PrefixLength "24" -DefaultGateway "172.16.100.1" -AddressFamily IPv4
+            Set-DnsClientServerAddress -InterfaceAlias "Ethernet" -ServerAddresses "172.16.100.11"
+            ### Install Features
+        }
+
+        # G-WKS-1
+        $UserName = "Administrator"
+        $Password = ConvertTo-SecureString 'Pa$$w0rd!!!!!' -AsPlainText -Force
+        $psCred = New-Object System.Management.Automation.PSCredential($UserName, $Password)
+
+        Invoke-Command -VMName G-WKS-1 -Credential $psCred -ScriptBlock {
+            New-NetIPAddress -IPAddress "172.16.100.32" -InterfaceAlias "Ethernet" -PrefixLength "24" -DefaultGateway "172.16.100.1" -AddressFamily IPv4
+            Set-DnsClientServerAddress -InterfaceAlias "Ethernet" -ServerAddresses "172.16.100.21"
+            ### Install Features
+        }
+
+        # B-HYP-1
+        $UserName = "Administrator"
+        $Password = ConvertTo-SecureString 'Pa$$w0rd!!!!!' -AsPlainText -Force
+        $psCred = New-Object System.Management.Automation.PSCredential($UserName, $Password)
+
+        Invoke-Command -VMName B-HYP-1 -Credential $psCred -ScriptBlock {
+            New-NetIPAddress -IPAddress "172.16.100.22" -InterfaceAlias "Ethernet" -PrefixLength "24" -DefaultGateway "172.16.100.1" -AddressFamily IPv4
+            Set-DnsClientServerAddress -InterfaceAlias "Ethernet" -ServerAddresses "172.16.100.21"
+            ### Install Features
+            Install-WindowsFeature -name "Hyper-V" -IncludeManagementTools -IncludeAllSubFeature -Restart
+        }
+
+        # B-HYP-2
+        $UserName = "Administrator"
+        $Password = ConvertTo-SecureString 'Pa$$w0rd!!!!!' -AsPlainText -Force
+        $psCred = New-Object System.Management.Automation.PSCredential($UserName, $Password)
+
+        Invoke-Command -VMName B-HYP-2 -Credential $psCred -ScriptBlock {
+            New-NetIPAddress -IPAddress "172.16.100.23" -InterfaceAlias "Ethernet" -PrefixLength "24" -DefaultGateway "172.16.100.1" -AddressFamily IPv4
+            Set-DnsClientServerAddress -InterfaceAlias "Ethernet" -ServerAddresses "172.16.100.21"
+            ### Install Features
+            Install-WindowsFeature -name "Hyper-V" -IncludeManagementTools -IncludeAllSubFeature -Restart
+        }
 
       }            
     }
