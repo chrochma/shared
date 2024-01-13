@@ -1,4 +1,4 @@
-
+Set-VMHost -EnableEnhancedSessionMode:$true
 New-VMSwitch -SwitchName "Corp-Network"-SwitchType Internal
 New-NetIPAddress -IPAddress "172.16.100.1" -PrefixLength 24 -InterfaceAlias "vEthernet (Corp-Network)"
 New-NetNat -Name "Corp-Network" -InternalIPInterfaceAddressPrefix 172.16.100.0/24
@@ -379,7 +379,7 @@ if(!(Test-Path $VMLocation))
    #G-WKS-1
     $VMName = "G-WKS-1"
     $CPUCores = "4"
-    [Int64]$RAMinGB = "8"
+    [Int64]$RAMinGB = "4"
 
     # Prepare OSDisk
     New-Item -Path $VMLocation -Name $VMName -ItemType Directory
@@ -405,7 +405,7 @@ if(!(Test-Path $VMLocation))
     $RaminGB =  $RAMinGB*1024*1024*1024
     Set-VMMemory -VMName $VMName -StartupBytes $RAMinGB -DynamicMemoryEnabled $false
     Set-VMProcessor -VMName $VMName -Count $CPUCores -ExposeVirtualizationExtensions:$true
-    #Start-VM -Name $VMName
+    Start-VM -Name $VMName
   
    #B-DC-1
     $VMName = "B-DC-1"
@@ -678,7 +678,7 @@ if(!(Test-Path $VMLocation))
         Add-computer -DomainName "blue.contoso.com" -Credential $psCred -OUPath "OU=Tier-1,OU=SERVERS,OU=CORP,DC=BLUE,DC=CONTOSO,DC=COM" -Restart
     }
 
-    <#
+    
     # G-WKS-1
     $UserName = "Administrator"
     $Password = ConvertTo-SecureString 'Pa$$w0rd!!!!!' -AsPlainText -Force
@@ -689,6 +689,6 @@ if(!(Test-Path $VMLocation))
         Set-DnsClientServerAddress -InterfaceAlias "Ethernet" -ServerAddresses "172.16.100.21"
         ### Install Features
         Stop-Computer -Confirm:$false
-    }#>
+    }
 
 #endregion
