@@ -3,19 +3,20 @@ New-VMSwitch -SwitchName "Corp-Network"-SwitchType Internal
 New-NetIPAddress -IPAddress "172.16.100.1" -PrefixLength 24 -InterfaceAlias "vEthernet (Corp-Network)"
 New-NetNat -Name "Corp-Network" -InternalIPInterfaceAddressPrefix 172.16.100.0/24
 
-#region download products
-Foreach($SelectedProduct in $SelectedProducts){
-$item=$Products | Where-Object product -eq $SelectedProduct
+
 #Download SSU
 $update=Get-MSCatalogUpdate -Search "Cumulative Update for Microsoft server operating system version 21H2 for x64-based Systems" | Select-Object -First 1
-$FolderItem = $item.FolderID
-$DestinationFolder="$folder\$FolderItem\$($update.title.Substring(0,7))"
-$UpdatePattern = $DestinationFolder -replace '^.*(?=.{7}$)'
+$DriveLetterLocation = (Get-Volume | Where-Object DriveLetter | Sort-Object -Descending SizeRemaining | Select-Object -First 1).DriveLetter
+$VMLocation = $DriveLetterLocation+":\VMs"
+New-Item -Path $VMLocation -ItemType Directory
+New-Item -Path $VMLocation -Name "Image" -ItemType Directory
+$DestinationFolder="$VMLocation\Image"
+
+   
    
 if(Test-Path $destinationFolder){
 }else {
     New-Item -Path $DestinationFolder -ItemType Directory -ErrorAction Ignore | Out-Null
-    Write-Output "Downloading $($update.title) to $destinationFolder"
     Write-Host $update
     $update | Save-MSCatalogUpdate -Destination "$DestinationFolder" #-UseBits
     
@@ -26,13 +27,13 @@ if(Test-Path $destinationFolder){
         $update | Save-MSCatalogUpdate -Destination $DestinationFolder #-UseBits
     }
 
-}
+
 }
 #endregion
 #Parameters
 #VHD size
 $size=60GB
-$OSVersions = "WS2022"
+$OSVersion = "WS2022"
 
 #region Functions
 $RunTimeDate = get-date -Format "ddMMyyyy"
@@ -54,12 +55,7 @@ If ((Get-ExecutionPolicy) -ne "RemoteSigned"){
     #region download convert-windowsimage if needed and load it
     
     if (!(Test-Path "$PSScriptRoot\convert-windowsimage.ps1")){
-        WriteInfo "`t Downloading Convert-WindowsImage"
-        try{
-            Invoke-WebRequest -UseBasicParsing -Uri https://raw.githubusercontent.com/MicrosoftDocs/Virtualization-Documentation/live/hyperv-tools/Convert-WindowsImage/Convert-WindowsImage.ps1 -OutFile "$PSScriptRoot\convert-windowsimage.ps1"
-        }catch{
-            WriteErrorAndExit "`t Failed to download convert-windowsimage.ps1!"
-        }
+        Invoke-WebRequest -UseBasicParsing -Uri https://raw.githubusercontent.com/MicrosoftDocs/Virtualization-Documentation/live/hyperv-tools/Convert-WindowsImage/Convert-WindowsImage.ps1 -OutFile "$PSScriptRoot\convert-windowsimage.ps1"
     }
 
     #load convert-windowsimage
@@ -69,94 +65,50 @@ If ((Get-ExecutionPolicy) -ne "RemoteSigned"){
 
 #region Ask for ISO
 #grab folder to download to
-foreach($OSVersion in $OSVersions){
     if(Test-path hklm:software\RMLab\Templates\$OSVersion)
     {
         $openfile = (Get-ItemProperty -Path hklm:software\RMLab\Templates\$OSVersion -Name "Path").Path
-    }
-    else
-    {
-        WriteInfoHighlighted "Please select ISO image"
+    }else{
         [reflection.assembly]::loadwithpartialname("System.Windows.Forms")
         $OSName = "Windows Server 2022"
-        Start-BitsTransfer -Source "https://go.microsoft.com/fwlink/p/?LinkID=2195280&clcid=0x409&culture=en-us&country=US" -Destination C:\Temp\win2022.iso
+        Start-BitsTransfer -Source "https://go.microsoft.com/fwlink/p/?LinkID=2195280&clcid=0x409&culture=en-us&country=US" -Destination $DestinationFolder\win2022.iso
         New-Item -Path hklm:software -Name RMLab -ErrorAction SilentlyContinue
         New-Item -Path hklm:software\RMLab -Name Templates -ErrorAction SilentlyContinue
         New-Item -Path hklm:software\RMLab\Templates -Name $OSVersion -ErrorAction SilentlyContinue
-        Set-ItemProperty -Path hklm:software\RMLab\Templates\$OSVersion -Name "Path" -Value "C:\Temp\win2022.iso"
+        Set-ItemProperty -Path hklm:software\RMLab\Templates\$OSVersion -Name "Path" -Value "$DestinationFolder\win2022.iso"
 
     }
-}
     
-foreach($OSVersion in $OSVersions){
     $openfile = (Get-ItemProperty -Path hklm:software\RMLab\Templates\$OSVersion -Name "Path").Path
-    $UpdateFolder = (Get-ItemProperty -Path hklm:software\RMLab\Templates\Updates -Name "Path").Path
-    $LatestMSU = (Get-Item -Path $UpdateFolder\$OSVersion\* | Sort-Object -Property LastWriteTime -Descending | select -First 1).Name
+    $UpdateFolder = $DestinationFolder
+    $LatestMSU = $DestinationFolder
 
     #VHD imagename
     switch ($OSVersion) {
-    "WS2022" { $vhdname = "WS2022-$LatestMSU-G2.vhdx";$TemplateName = "WIN2022-G2";$KMSKey = "W3GNR-8DDXR-2TFRP-H8P33-DV9BG" }
+    "WS2022" { $vhdname = "WS2022-G2.vhdx";$TemplateName = "WIN2022-G2";$KMSKey = "W3GNR-8DDXR-2TFRP-H8P33-DV9BG" }
     Default {$vhdname="WIN.vhdx"}
     }
     WriteInfo "$vhdname | Size: $size | setup started"
             
-    if(Test-Path $UpdateFolder\$OSVersion\$LatestMSU\*.vhdx){
-        WriteInfo "$vhdname is already existing"
-        if((Get-Item $UpdateFolder\$OSVersion\*).count -gt 1){
-            Get-Item $UpdateFolder\$OSVersion\* | Select-Object -First 1 | Remove-Item -Force -Confirm:$False
-        }
-        $VHDxs = (Get-Item $UpdateFolder\$OSVersion\$LatestMSU\*).Count
-        if($VHDxs -gt 1){
-            #Get-Item $UpdateFolder\$OSVersion\$LatestMSU\* | Select-Object -Last 1 | Remove-Item -Force -Confirm:$False
-        }
-        $VHDxs = (Get-Item $UpdateFolder\$OSVersion\$LatestMSU\*.vhdx).Count
-    }else{
-        $VHDxs = (Get-Item $UpdateFolder\$OSVersion\$LatestMSU\*).Count
-        if($VHDxs -gt 1){
-            #Get-Item $UpdateFolder\$OSVersion\$LatestMSU\* | Select-Object -Last 1 | Remove-Item -Force -Confirm:$False
-        }
         $ISO = Mount-DiskImage -ImagePath $openFile -PassThru
         $ISOMediaPath = (Get-Volume -DiskImage $ISO).DriveLetter+':'
-    }
-
-    #region ask for MSU packages
-        if(Test-Path $UpdateFolder\$OSVersion)
-        {
-            $msupackages = Get-Item -Path $UpdateFolder\$OSVersion\$LatestMSU\*.msu
-            WriteInfoHighlighted  "Following patches selected:"
-            foreach ($filename in $msupackages.Name){
-                WriteInfo "`t $filename"
-            }
-        }
-
-        #Write info if nothing is selected
-        if (!$msupackages.Name){
-            WriteInfoHighlighted "No msu was selected..."
-        }
-
-        #sort packages by size (to apply Servicing Stack Update first)
-        if ($msupackages.Name){
-            $files=@()
-            foreach ($Filename in $msupackages.Name){$files+=Get-ChildItem -Path $UpdateFolder\$OSVersion\$LatestMSU\$filename}
-            $packages=($files |Sort-Object -Property Length).Fullname
-        }
 
     #endregion
     #region do the job
-        if(Test-Path $UpdateFolder\$OSVersion\$LatestMSU\$vhdname){
+        if(Test-Path $UpdateFolder\$vhdname){
         WriteInfo "$vhdname is already existing"
-            <#$VHDxs = (Get-Item $UpdateFolder\$OSVersion\$LatestMSU\*).Count
+            <#$VHDxs = (Get-Item $UpdateFolder\*).Count
             if($VHDxs -gt 1){
-                Get-Item $UpdateFolder\$OSVersion\$LatestMSU\* | Select-Object -Last 1 | Remove-Item -Force -Confirm:$False
+                Get-Item $UpdateFolder\* | Select-Object -Last 1 | Remove-Item -Force -Confirm:$False
             }#>
         }else{
-        if(Test-Path $UpdateFolder\$OSVersion\$LatestMSU\*.vhdx){
-            $VHDXss = Get-Item "$UpdateFolder\$OSVersion\$LatestMSU\*.vhdx"
+        if(Test-Path $UpdateFolder\*.vhdx){
+            $VHDXss = Get-Item "$UpdateFolder\*.vhdx"
             foreach($VHDX in $VHDXss){
                 $VHDxsName = $VHDX.Name
                 if($VHDxsName -eq $vhdname){
                 }else{
-                    Remove-Item $UpdateFolder\$OSVersion\$LatestMSU\$VHDxsName -Force -Confirm:$False
+                    Remove-Item $UpdateFolder\$VHDxsName -Force -Confirm:$False
                 }
             }
         }
@@ -184,19 +136,19 @@ foreach($OSVersion in $OSVersions){
     #Create VHD
         if ($packages){
             if ($BuildNumber -le 7601){
-                Convert-WindowsImage -SourcePath "$ISOMediaPath\sources\install.wim" -Edition $Edition -VHDPath "$UpdateFolder\$OSVersion\$LatestMSU\$vhdname" -SizeBytes $size -VHDFormat VHDX -DiskLayout BIOS -Package $packages
-                If(Test-Path "$UpdateFolder\$OSVersion\$LatestMSU\$vhdname"){WriteSuccess -message "$vhdname created successfully"}else{WriteError -message "$vhdname creation failed"}
+                Convert-WindowsImage -SourcePath "$ISOMediaPath\sources\install.wim" -Edition $Edition -VHDPath "$UpdateFolder\$vhdname" -SizeBytes $size -VHDFormat VHDX -DiskLayout BIOS -Package $packages
+                If(Test-Path "$UpdateFolder\$vhdname"){WriteSuccess -message "$vhdname created successfully"}else{WriteError -message "$vhdname creation failed"}
             }else{
-                Convert-WindowsImage -SourcePath "$ISOMediaPath\sources\install.wim" -Edition $Edition -VHDPath "$UpdateFolder\$OSVersion\$LatestMSU\$vhdname" -SizeBytes $size -VHDFormat VHDX -DiskLayout UEFI -Package $packages
-                If(Test-Path "$UpdateFolder\$OSVersion\$LatestMSU\$vhdname"){WriteSuccess -message "$vhdname created successfully"}else{WriteError -message "$vhdname creation failed"}
+                Convert-WindowsImage -SourcePath "$ISOMediaPath\sources\install.wim" -Edition $Edition -VHDPath "$UpdateFolder\$vhdname" -SizeBytes $size -VHDFormat VHDX -DiskLayout UEFI -Package $packages
+                If(Test-Path "$UpdateFolder\$vhdname"){WriteSuccess -message "$vhdname created successfully"}else{WriteError -message "$vhdname creation failed"}
             }
         }else{
             if ($BuildNumber -le 7601){
-                Convert-WindowsImage -SourcePath "$ISOMediaPath\sources\install.wim" -Edition $Edition -VHDPath "$UpdateFolder\$OSVersion\$LatestMSU\$vhdname" -SizeBytes $size -VHDFormat VHDX -DiskLayout BIOS
-                If(Test-Path "$UpdateFolder\$OSVersion\$LatestMSU\$vhdname"){WriteSuccess -message "$vhdname created successfully"}else{WriteError -message "$vhdname creation failed"}
+                Convert-WindowsImage -SourcePath "$ISOMediaPath\sources\install.wim" -Edition $Edition -VHDPath "$UpdateFolder\$vhdname" -SizeBytes $size -VHDFormat VHDX -DiskLayout BIOS
+                If(Test-Path "$UpdateFolder\$vhdname"){WriteSuccess -message "$vhdname created successfully"}else{WriteError -message "$vhdname creation failed"}
             }else{
-                Convert-WindowsImage -SourcePath "$ISOMediaPath\sources\install.wim" -Edition $Edition -VHDPath "$UpdateFolder\$OSVersion\$LatestMSU\$vhdname" -SizeBytes $size -VHDFormat VHDX -DiskLayout UEFI
-                If(Test-Path "$UpdateFolder\$OSVersion\$LatestMSU\$vhdname"){WriteSuccess -message "$vhdname created successfully"}else{WriteError -message "$vhdname creation failed"}
+                Convert-WindowsImage -SourcePath "$ISOMediaPath\sources\install.wim" -Edition $Edition -VHDPath "$UpdateFolder\$vhdname" -SizeBytes $size -VHDFormat VHDX -DiskLayout UEFI
+                If(Test-Path "$UpdateFolder\$vhdname"){WriteSuccess -message "$vhdname created successfully"}else{WriteError -message "$vhdname creation failed"}
             }
         }
         
@@ -206,18 +158,14 @@ foreach($OSVersion in $OSVersions){
         WriteInfo "$OSVersion is finished"
         }
         }
-     }
+     
 
 # Create VM Foundation
-$DriveLetterLocation = (Get-Volume | Where-Object DriveLetter | Sort-Object -Descending SizeRemaining | Select-Object -First 1).DriveLetter
-$VMLocation = $DriveLetterLocation+":\VMs"
 
-if(!(Test-Path $VMLocation))
-{
-    New-Item -Path $VMLocation -ItemType Directory
-    New-Item -Path $VMLocation -Name "Image" -ItemType Directory
     $HostGuard = New-HgsGuardian -Name 'VMLocalGuardian' -GenerateCertificates
-
+    $SourceDisc = Get-Item -Path "$DestinationFolder\*.vhdx"
+    $ImagePath = "$DestinationFolder\"+$SourceDisc.Name
+    #Copy-Item -Path $SourceDisc.FullName -Destination $ImagePath -ErrorAction SilentlyContinue
     
     '<?xml version="1.0" encoding="utf-8"?>'| Out-File -FilePath $VMLocation\Image\unattend.xml -Encoding utf8
     '<unattend xmlns="urn:schemas-microsoft-com:unattend" xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">'| Out-File -FilePath $VMLocation\Image\unattend.xml -Encoding utf8 -Append
@@ -278,10 +226,6 @@ if(!(Test-Path $VMLocation))
     '	</settings>'| Out-File -FilePath $VMLocation\Image\unattend.xml -Encoding utf8 -Append
     '</unattend>'| Out-File -FilePath $VMLocation\Image\unattend.xml -Encoding utf8 -Append
 
-    $SourceDisc = Get-Item -Path "C:\WS2022\*.vhdx"
-    $ImagePath = "$VMLocation\Image\"+$SourceDisc.Name
-    Copy-Item -Path $SourceDisc.FullName -Destination $ImagePath -ErrorAction SilentlyContinue
-}
 # Create VMs
     #R-DC-1
     $VMName = "R-DC-1"
