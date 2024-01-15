@@ -20,7 +20,7 @@ Set-ItemProperty -Path "HKCU:\Software\Microsoft\ServerManager" -Name DoNotOpenA
         $Disk | New-Partition -UseMaximumSize -AssignDriveLetter | Format-Volume -FileSystem NTFS -AllocationUnitSize 65536 -NewFileSystemLabel "DATA" -Confirm:$false 
     }
   
-    New-ItemProperty -Path HKCU:\Software\Microsoft\ServerManager -Name DoNotOpenServerManagerAtLogon -PropertyType DWORD -Value "0x1" –Force
+    New-ItemProperty -Path HKCU:\Software\Microsoft\ServerManager -Name DoNotOpenServerManagerAtLogon -PropertyType DWORD -Value "0x1" -Force
 
     Write-Host "Pre Installation succeeded, press any key to restart." -ForegroundColor Cyan
     Pause
