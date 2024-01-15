@@ -73,6 +73,7 @@ If ((Get-ExecutionPolicy) -ne "RemoteSigned"){
         $OSName = "Windows Server 2022"
         Start-BitsTransfer -Source "https://go.microsoft.com/fwlink/p/?LinkID=2195280&clcid=0x409&culture=en-us&country=US" -Destination $DestinationFolder\win2022.iso
         Start-BitsTransfer -Source "https://github.com/microsoft/GuardedFabricTools/archive/refs/tags/v1.1.1.zip" -Destination $DestinationFolder
+        Start-BitsTransfer -Source "https://webapp-wdac-wizard.azurewebsites.net/packages/WDACWizard.appinstaller" -Destination $DestinationFolder
         New-Item -Path hklm:software -Name RMLab -ErrorAction SilentlyContinue
         New-Item -Path hklm:software\RMLab -Name Templates -ErrorAction SilentlyContinue
         New-Item -Path hklm:software\RMLab\Templates -Name $OSVersion -ErrorAction SilentlyContinue
