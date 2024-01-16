@@ -589,7 +589,7 @@ If ((Get-ExecutionPolicy) -ne "RemoteSigned"){
         $UserName = "blue\Administrator"
         $Password = ConvertTo-SecureString 'Pa$$w0rd!!!!!' -AsPlainText -Force
         $psCred = New-Object System.Management.Automation.PSCredential($UserName, $Password)
-        Add-computer -DomainName "blue.contoso.com" -Credential $psCred -OUPath "OU=Tier-1,OU=SERVERS,OU=CORP,DC=BLUE,DC=CONTOSO,DC=COM" -Restart
+        Add-computer -DomainName "blue.contoso.com" -Credential $psCred -OUPath "OU=Tier-1,OU=SERVERS,OU=CORP,DC=BLUE,DC=CONTOSO,DC=COM" -Restartfguard
     }
 
     # B-HYP-2
