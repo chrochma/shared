@@ -141,7 +141,7 @@ Pause
 'HighlyAvailable=0'| Out-File -FilePath "C:\VMM\System Center Virtual Machine Manager\VMServer.ini" -Encoding utf8 -Append
 'VmmServerName=B-VMM-1'| Out-File -FilePath "C:\VMM\System Center Virtual Machine Manager\VMServer.ini" -Encoding utf8 -Append
 cd "C:\VMM\System Center Virtual Machine Manager"            
-.\Setup.exe /server /i /f "C:\VMM\System Center Virtual Machine Manager\VMServer.ini" /SqlDBAdminDomain red.contoso.com /SqlDBAdminName svc.db /SqlDBAdminPassword 'Pa$$w0rd!!!!!' /VmmServiceDomain blue.contoso.com /VmmServiceUserName svc.scvmm /VmmServiceUserPassword 'Pa$$w0rd!!!!!' /IACCEPTSCEULA
+.\Setup.exe /server /i /f "C:\VMM\System Center Virtual Machine Manager\VMServer.ini" /SqlDBAdminDomain red.contoso.com /SqlDBAdminName svc.scvmm /SqlDBAdminPassword 'Pa$$w0rd!!!!!' /VmmServiceDomain blue.contoso.com /VmmServiceUserName svc.scvmm /VmmServiceUserPassword 'Pa$$w0rd!!!!!' /IACCEPTSCEULA
         }
     Write-Host "VMM Installation finished." -ForegroundColor Cyan
     pause
