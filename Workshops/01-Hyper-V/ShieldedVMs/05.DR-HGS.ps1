@@ -1,4 +1,4 @@
-# Create VMM VM
+# Create DR HGS VM
 
 #R-HGS-3
 $VMName = "R-HGS-3"
@@ -49,5 +49,5 @@ Invoke-Command -VMName R-HGS-3 -Credential $psCred -ScriptBlock {
     $UserName = "red\Administrator"
     $Password = ConvertTo-SecureString 'Pa$$w0rd!!!!!' -AsPlainText -Force
     $psCred = New-Object System.Management.Automation.PSCredential($UserName, $Password)
-    Add-computer -DomainName "blue.contoso.com" -Credential $psCred -OUPath "OU=Tier-0,OU=SERVERS,OU=CORP,DC=RED,DC=CONTOSO,DC=COM" -Restart
+    Add-computer -DomainName "red.contoso.com" -Credential $psCred -OUPath "OU=Tier-0,OU=SERVERS,OU=CORP,DC=RED,DC=CONTOSO,DC=COM" -Restart
 }
