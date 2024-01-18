@@ -56,7 +56,7 @@ $Password = ConvertTo-SecureString 'Pa$$w0rd!!!!!' -AsPlainText -Force
 $psCred = New-Object System.Management.Automation.PSCredential($UserName, $Password)
 
 Write-Host "Please logon to B-VMM-1 as blue\Administrator and run the following script locally:" -ForegroundColor Cyan
-
+Pause
 <#
     New-Item -ItemType Directory -Path C:\VMM -Force
     Start-BitsTransfer -Source "https://go.microsoft.com/fwlink/p/?LinkID=2195845&clcid=0x409&culture=en-us&country=US" -Destination "C:\VMM\SCVMM_2022.exe"
@@ -86,13 +86,14 @@ Write-Host "Please logon to B-VMM-1 as blue\Administrator and run the following 
 #>
 
 
-Pause
-
     Start-Sleep -Seconds 15
         Invoke-Command -VMName B-DC-1 -Credential $psCred -ScriptBlock {
             $AccountPW = ConvertTo-SecureString 'Pa$$w0rd!!!!!' -AsPlainText -Force
             New-ADUser -Name 'svc.db' -Path 'OU=ServiceAccounts,OU=Accounts,OU=Corp,DC=blue,DC=contoso,DC=com' -AccountPassword $AccountPW -Enabled:$true
             New-ADUser -Name 'svc.scvmm' -Path 'OU=ServiceAccounts,OU=Accounts,OU=Corp,DC=blue,DC=contoso,DC=com' -AccountPassword $AccountPW -Enabled:$true
+        }
+        Invoke-Command -VMName B-HYP-1 -Credential $psCred -ScriptBlock {
+            New-NetFirewallRule -DisplayName "Allow Any" -Direction Inbound -LocalAddress Any -RemoteAddress Any -RemotePort Any -LocalPort Any -Action Allow
         }
         Invoke-Command -VMName B-VMM-1 -Credential $psCred -ScriptBlock {
             Mount-DiskImage -ImagePath C:\VMM\SQLServer2019-x64-ENU.iso
