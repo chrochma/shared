@@ -1,3 +1,7 @@
+# Disbale Edge bla bla
+# Set-ItemProperty -Path HKLM:\SOFTWARE\Policies\Microsoft\Edge -Name HiseFirstRunExperience -Value 1 -Type DWord
+# Set-ItemProperty -Path HKLM:\SOFTWARE\Policies\Microsoft\Edge -Name NewTabPageLocation -Value https://portal.azure.com -Type reg_sz
+
 Set-VMHost -EnableEnhancedSessionMode:$true
 New-VMSwitch -SwitchName "Corp-Network"-SwitchType Internal
 New-NetIPAddress -IPAddress "172.16.100.1" -PrefixLength 24 -InterfaceAlias "vEthernet (Corp-Network)"

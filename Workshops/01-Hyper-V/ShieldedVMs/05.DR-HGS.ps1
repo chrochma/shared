@@ -51,3 +51,4 @@ Invoke-Command -VMName R-HGS-3 -Credential $psCred -ScriptBlock {
     $psCred = New-Object System.Management.Automation.PSCredential($UserName, $Password)
     Add-computer -DomainName "red.contoso.com" -Credential $psCred -OUPath "OU=Tier-0,OU=SERVERS,OU=CORP,DC=RED,DC=CONTOSO,DC=COM" -Restart
 }
+
